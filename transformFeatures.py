@@ -121,6 +121,8 @@ def featureSelection(matrixX, matrixY, fileName):
 
 
 #------------------------MAIN--------------------------
+# does not perform feature selection
+# does scale features
 def processFile(inFileName, outFileName):
     print "%s -> %s" % (inFileName, outFileName)
     # read in the csv file 
@@ -148,7 +150,8 @@ def processFile(inFileName, outFileName):
 
 
 
-
+# iterates over list and processes files
+# performs feature selection after combining all the data in all the files
 def mainAll(filesList):
     start = timeit.default_timer()
     featuresFinal = None
@@ -185,11 +188,9 @@ def mainAll(filesList):
 filesList = [
     "17_Lab_Cmac_031214",
     "17_Lab_Cmac_031214"
-#    ["./LabeledData/.csv","./output/"]
-#    ["./LabeledData/.csv","./output/"]
 ]
 
-#processFile(filesList[0][0], filesList[0][1])
+#processFile("./LabeledData/%s.csv" % filesList[0], "./output/%s" % filesList[0])
 
 mainAll(filesList)
 
