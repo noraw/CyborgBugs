@@ -2,10 +2,12 @@
 import os
 import csv
 import random
+import timeit
+import numpy
 from sets import Set
 from sklearn import preprocessing
 from sklearn.ensemble import ExtraTreesClassifier
-import numpy
+
 
 #-------------Global Config variables-----------------------
 LabelOptions = ['np', 'c', 'e1', 'e2', 'd', 'g']
@@ -140,30 +142,56 @@ def processFile(inFileName, outFileName):
     # scale all features to center around mean with variance 1
     featureMatrix_scaled = preprocessing.scale(fourierFeatureMatrix)
 
-    # preform feature selection
-    featureMatrix = featureSelection(featureMatrix_scaled, labelsMatrix, outFileName)
-    print "Size of Selected Feature Matrix: (%i, %i)" % (featureMatrix.shape[0], featureMatrix.shape[1])
-    writeFileMatrix(featureMatrix, "%s_selectedFeatures_%s.dat" % (outFileName, len(secDict)))
     print "\n"
-    return [featureMatrix, labelsMatrix]
+    return [fourierFeatureMatrix, labelsMatrix]
+
+
+
 
 
 def mainAll(filesList):
+    start = timeit.default_timer()
+    featuresFinal = None
+    labelsFinal = None
+    outCombinedFile = "./output/"
     for fileRow in filesList:
-        [matrix, labels] = processFile(fileRow[0], fileRow[1])
+        inFile = "./LabeledData/%s.csv" % fileRow
+        outFile = "./output/%s" % fileRow
+        outCombinedFile += "%s--" % fileRow
+        if(featuresFinal == None):
+            [featuresFinal, labelsFinal] = processFile(inFile, outFile)
+        else:
+            [features, labels] = processFile(inFile, outFile)
+            featuresFinal = numpy.concatenate((featuresFinal, features), axis=0)
+            labelsFinal = numpy.concatenate((labelsFinal, labels), axis=0)
+            break
+
+    print "Size of Combined Feature Matrix: (%i, %i)" % (featuresFinal.shape[0], featuresFinal.shape[1])
+    print "Size of Combined Labels Matrix: (%i, %i)" % (labelsFinal.shape[0], labelsFinal.shape[1])
+
+    # preform feature selection
+    print "Performing Feature Selection..."
+    featureMatrix = featureSelection(featuresFinal, labelsFinal, outCombinedFile)
+    print "Size of Selected Feature Matrix: (%i, %i)" % (featureMatrix.shape[0], featureMatrix.shape[1])
+    stop = timeit.default_timer()
+
+    writeFileMatrix(featureMatrix, "%s_selectedFeatures_%s.dat" % (outCombinedFile, featureMatrix.shape[0]))
+
+    print "\nRuntime: " + str(stop - start)
 
 
 # ----------------MAIN CALLS ---------------------------------
 
 filesList = [
-    ["./LabeledData/17_Lab_Cmac_031214.csv","./output/17_Lab_Cmac_031214"],
-    ["./LabeledData/.csv","./output/"],
-    ["./LabeledData/.csv","./output/"]
+    "17_Lab_Cmac_031214",
+    "17_Lab_Cmac_031214"
+#    ["./LabeledData/.csv","./output/"]
+#    ["./LabeledData/.csv","./output/"]
 ]
 
-processFile(filesList[0][0], filesList[0][1])
+#processFile(filesList[0][0], filesList[0][1])
 
-#mainAll(filesList)
+mainAll(filesList)
 
 
 
