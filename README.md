@@ -2,10 +2,13 @@
 
 
 -------------Stuff to Install---------------------
-
+Linux:
 pip install --user --install-option="--prefix=" -U scikit-learn
-
 sudo apt-get install python-numpy python-scipy python-matplotlib ipython ipython-notebook python-pandas python-sympy python-nose
+
+Mac:
+sudo easy_install pip
+pip install -U numpy scipy scikit-learn
 
 
 

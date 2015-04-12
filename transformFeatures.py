@@ -6,7 +6,7 @@ import timeit
 import numpy
 from sets import Set
 from sklearn import preprocessing
-from sklearn.ensemble import ExtraTreesClassifier
+from sklearn.ensemble import RandomForestClassifier
 
 
 #-------------Global Config variables-----------------------
@@ -15,7 +15,7 @@ LabelToIntConversion = {'np': 1, 'c': 2, 'e1': 3, 'e2': 4, 'd': 5, 'g': 6}
 
 #------------Variables that can easily be changed to affect output-------------------------
 lenOfFourier = 240
-numFeatures = 12
+numFeatures = 134
 
 
 #-------------Input/Output functions----------------------------------------
@@ -27,15 +27,23 @@ def readFile(fileName):
 def writeFileMatrix(matrix, fileName):
     matrix.tofile(fileName)
 
-def writeFileArray(array, fileName):
+def writeFileArray(dictionary, fileName):
     # output feature importance for graphs
     outfile = file(fileName, "w")
-    outfile.write('"ID","Value"\n');
-    for i in range (len(array)):
-        outLine = str(i) + ","
-        outLine += str(array[i])
+    keys = []
+    header = ""
+    for key in dictionary[0].keys():
+        keys.append(key)
+        header += '"'+str(key) + '",'
+    outfile.write(header + '\n');
+
+    for i in range(len(dictionary)):
+        outLine = ""
+        for key in keys:
+            outLine += str(dictionary[i][key]) + ","
         outLine += "\n"
         outfile.write(outLine)
+
     outfile.close();
 
 
@@ -102,22 +110,43 @@ def getMatrixOfLabels(secDict):
         rowId +=1
     return matrix
  
-def featureSelection(matrixX, matrixY, fileName):
-    clf = ExtraTreesClassifier(n_estimators=240,
-                          random_state=0)
-    X_new = clf.fit(matrixX, numpy.ravel(matrixY))
-    writeFileArray(clf.feature_importances_, "%s_featureImportance.csv" % (fileName))
+def featureSelection(matrixX, matrixY, seed, fileName):
+        clf = RandomForestClassifier(n_estimators=240,
+            random_state=seed,
+            oob_score=True)
+        clf.fit(matrixX, numpy.ravel(matrixY))
+        featureMatrix = clf.transform(matrixX)
+        accuracy = clf.score(matrixX, matrixY)
+        oob_score = clf.oob_score_
 
-    featureMatrix = clf.transform(matrixX)
-    if(numFeatures != -1):
-        i = featureMatrix.shape[1]
-        while i > numFeatures:
-            featureMatrix = numpy.delete(featureMatrix, featureMatrix.shape[1]-1, 1)
-            i -= 1
+        # print out oob_score and accuracy
+        dictionary = [{"ID":"oob_score", "Value":oob_score}]
+        dictionary.append({"ID":"accuracy", "Value":accuracy})
+        for i in range(len(clf.feature_importances_)):
+            dictionary.append({"ID":i+1, "Value":clf.feature_importances_[i]})
+        writeFileArray(dictionary, "%s_featureImportance_seed-%i.csv" % (fileName, seed))
+        return [clf, featureMatrix]
 
-    return featureMatrix
 
+def featureSelectionTestOptions(matrixX, matrixY, fileName):
+    seeds = [0, 7, 16, 1, 24, 72, 48, 96, 28, 56, 112]
+    for seed in seeds:
+        [clf, featureMatrix] = featureSelection(matrixX, matrixY, seed, fileName)
+        # check out print out each accuracy with the number of features next to it.
+        # range number of features from default to 1
+        # train and score on shortened feature set (fit and score function)
+        dictionary = [{"Number of Features":0, "oob_score":0, "accuracy":0}]
+        if(numFeatures != -1):
+            i = featureMatrix.shape[1]
+            while i > numFeatures:
+                clf.fit(featureMatrix, numpy.ravel(matrixY))
+                accuracy = clf.score(featureMatrix, matrixY)
+                oob_score = clf.oob_score_
+                dictionary.append({"Number of Features":i, "oob_score":oob_score, "accuracy":accuracy})
 
+                featureMatrix = numpy.delete(featureMatrix, featureMatrix.shape[1]-1, 1)
+                i -= 1
+            writeFileArray(dictionary, "%s_featureScores_seed-%i.csv" % (fileName, seed))
 
 
 #------------------------MAIN--------------------------
@@ -145,7 +174,7 @@ def processFile(inFileName, outFileName):
     featureMatrix_scaled = preprocessing.scale(fourierFeatureMatrix)
 
     print "\n"
-    return [fourierFeatureMatrix, labelsMatrix]
+    return [featureMatrix_scaled, labelsMatrix]
 
 
 
@@ -174,7 +203,7 @@ def mainAll(filesList):
 
     # preform feature selection
     print "Performing Feature Selection..."
-    featureMatrix = featureSelection(featuresFinal, labelsFinal, outCombinedFile)
+    featureMatrix = featureSelectionTestOptions(featuresFinal, labelsFinal, outCombinedFile)
     print "Size of Selected Feature Matrix: (%i, %i)" % (featureMatrix.shape[0], featureMatrix.shape[1])
     stop = timeit.default_timer()
 
@@ -186,7 +215,6 @@ def mainAll(filesList):
 # ----------------MAIN CALLS ---------------------------------
 
 filesList = [
-    "17_Lab_Cmac_031214",
     "17_Lab_Cmac_031214"
 ]
 
