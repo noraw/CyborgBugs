@@ -127,26 +127,31 @@ def featureSelection(matrixX, matrixY, seed, fileName):
 
 
 def featureSelectionTestOptions(matrixX, matrixY, fileName):
-    seeds = [0, 7, 16, 1, 24, 72, 48, 96, 28, 56, 112]
+    seeds = [0]#, 7, 16, 1, 24, 72, 48, 96, 28, 56, 112]
     for seed in seeds:
+        start = timeit.default_timer()
         [clf, featureMatrix] = featureSelection(matrixX, matrixY, seed, fileName)
         print "Size of Feature Matrix(Seed %i): (%i, %i)" % (seed, featureMatrix.shape[0], featureMatrix.shape[1])
         # check out print out each accuracy with the number of features next to it.
         # range number of features from default to 1
         # train and score on shortened feature set (fit and score function)
-        dictionary = [{"Number of Features":0, "oob_score":0, "Accuracy":0}]
+        dictionary = [{"Number of Features":0, "oob_score":0, "Accuracy":0, "Time (secs)":0}]
         if(numFeatures != -1):
             i = featureMatrix.shape[1]
             while i > numFeatures:
-                print "    Getting score %i" % (i)
+                start1 = timeit.default_timer()
                 clf.fit(featureMatrix, numpy.ravel(matrixY))
                 accuracy = clf.score(featureMatrix, matrixY)
                 oob_score = clf.oob_score_
-                dictionary.append({"Number of Features":i, "oob_score":oob_score, "accuracy":accuracy})
+                stop1 = timeit.default_timer()
+                dictionary.append({"Number of Features":i, "oob_score":oob_score, "Accuracy":accuracy, "Time (secs)":stop1-start1})
 
                 featureMatrix = numpy.delete(featureMatrix, featureMatrix.shape[1]-1, 1)
+                print "    Getting score %i: %i secs" % (i, stop1-start1)
                 i -= 1
             writeFileArray(dictionary, "%s_featureScores_seed-%i.csv" % (fileName, seed))
+        stop = timeit.default_timer()
+        print "Lasted %i secs" % (stop-start)
     return featureMatrix
 
 
@@ -216,7 +221,14 @@ def mainAll(filesList):
 # ----------------MAIN CALLS ---------------------------------
 
 filesList = [
-    "17_Lab_Cmac_031214"
+    "04_Lab_FD_031114",
+    "12_Lab_C_060514",
+    "13_Lab_Cmac_031114",
+    "17_Lab_Cmac_031214",
+    "21_Lab_Corrizo_051614",
+    "29_Lab_Corrizo_051914",
+    "31_Lab_Troyer_052114",
+    "35_Lab_Val_100714"
 ]
 
 #processFile("./LabeledData/%s.csv" % filesList[0], "./output/%s" % filesList[0])
