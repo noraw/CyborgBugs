@@ -82,15 +82,13 @@ def groupIntoSeconds(inDict):
 
 
 def applyFourierTransform(secDict):
-    matrix = numpy.zeros(shape=(len(secDict),lenOfFourier*2), dtype=numpy.float64)
+    matrix = numpy.zeros(shape=(len(secDict),lenOfFourier), dtype=numpy.float64)
     rowId = 0
     for row in secDict:
         fourierList = numpy.fft.fft(row['VoltsArray'], lenOfFourier)
         mag = numpy.abs(fourierList)
-        angle = numpy.angle(fourierList)
         for i in range(lenOfFourier):
             matrix[rowId][i] = mag[i]
-            matrix[rowId][i+lenOfFourier] = angle[i]
         rowId +=1
     return matrix
 
