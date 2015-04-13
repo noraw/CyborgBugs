@@ -15,7 +15,7 @@ LabelToIntConversion = {'np': 1, 'c': 2, 'e1': 3, 'e2': 4, 'd': 5, 'g': 6}
 
 #------------Variables that can easily be changed to affect output-------------------------
 lenOfFourier = 240
-numFeatures = 134
+numFeatures = 1
 
 
 #-------------Input/Output functions----------------------------------------
@@ -121,7 +121,7 @@ def featureSelection(matrixX, matrixY, seed, fileName):
 
         # print out oob_score and accuracy
         dictionary = [{"ID":"oob_score", "Value":oob_score}]
-        dictionary.append({"ID":"accuracy", "Value":accuracy})
+        dictionary.append({"ID":"Accuracy", "Value":accuracy})
         for i in range(len(clf.feature_importances_)):
             dictionary.append({"ID":i+1, "Value":clf.feature_importances_[i]})
         writeFileArray(dictionary, "%s_featureImportance_seed-%i.csv" % (fileName, seed))
@@ -132,13 +132,15 @@ def featureSelectionTestOptions(matrixX, matrixY, fileName):
     seeds = [0, 7, 16, 1, 24, 72, 48, 96, 28, 56, 112]
     for seed in seeds:
         [clf, featureMatrix] = featureSelection(matrixX, matrixY, seed, fileName)
+        print "Size of Feature Matrix(Seed %i): (%i, %i)" % (seed, featureMatrix.shape[0], featureMatrix.shape[1])
         # check out print out each accuracy with the number of features next to it.
         # range number of features from default to 1
         # train and score on shortened feature set (fit and score function)
-        dictionary = [{"Number of Features":0, "oob_score":0, "accuracy":0}]
+        dictionary = [{"Number of Features":0, "oob_score":0, "Accuracy":0}]
         if(numFeatures != -1):
             i = featureMatrix.shape[1]
             while i > numFeatures:
+                print "    Getting score %i" % (i)
                 clf.fit(featureMatrix, numpy.ravel(matrixY))
                 accuracy = clf.score(featureMatrix, matrixY)
                 oob_score = clf.oob_score_
@@ -147,6 +149,7 @@ def featureSelectionTestOptions(matrixX, matrixY, fileName):
                 featureMatrix = numpy.delete(featureMatrix, featureMatrix.shape[1]-1, 1)
                 i -= 1
             writeFileArray(dictionary, "%s_featureScores_seed-%i.csv" % (fileName, seed))
+    return featureMatrix
 
 
 #------------------------MAIN--------------------------
