@@ -7,7 +7,7 @@ import numpy
 from sets import Set
 from sklearn import preprocessing
 from sklearn.ensemble import RandomForestClassifier
-
+from sklearn.cross_validation import train_test_split
 
 #-------------Global Config variables-----------------------
 LabelOptions = ['np', 'c', 'e1', 'e2', 'd', 'g']
@@ -16,6 +16,8 @@ LabelToIntConversion = {'np': 1, 'c': 2, 'e1': 3, 'e2': 4, 'd': 5, 'g': 6}
 #------------Variables that can easily be changed to affect output-------------------------
 lenOfFourier = 240
 numFeatures = 1
+finalSeed = 24
+trainPercent = .9
 
 
 #-------------Input/Output functions----------------------------------------
@@ -45,6 +47,34 @@ def writeFileArray(dictionary, fileName):
         outfile.write(outLine)
 
     outfile.close();
+
+
+def writeOutSamples(trainX, trainY, testX, testY, fileNames):
+    for i in range(len(fileNames)):
+        writeFileMatrix(trainX[i], "%s_selectedFeatures_train_%i.dat" % (fileNames[i], trainX[i].shape[0]))
+        writeFileMatrix(trainY[i], "%s_labels_train_%i.dat" % (fileNames[i], trainY[i].shape[0]))
+        writeFileMatrix(testX[i], "%s_selectedFeatures_test_%i.dat" % (fileNames[i], testX[i].shape[0]))
+        writeFileMatrix(testY[i], "%s_labels_test_%i.dat" % (fileNames[i], testY[i].shape[0]))
+
+
+def writeOutCombinedSamples(trainX, trainY, testX, testY, fileName):
+    trainXCombo = trainX[0]
+    trainYCombo = trainY[0]
+    testXCombo = testX[0]
+    testYCombo = testY[0]
+
+    for i in range(1, len(trainX)):
+        trainXCombo = numpy.concatenate((trainXCombo, trainX[i]), axis=0)
+        trainYCombo = numpy.concatenate((trainYCombo, trainY[i]), axis=0)
+        testXCombo = numpy.concatenate((testXCombo, testX[i]), axis=0)
+        testYCombo = numpy.concatenate((testYCombo, testY[i]), axis=0)
+
+        
+    writeFileMatrix(trainXCombo, "%s_selectedFeatures_train_%i.dat" % (fileName, trainXCombo.shape[0]))
+    writeFileMatrix(trainYCombo, "%s_labels_train_%i.dat" % (fileName, trainYCombo.shape[0]))
+    writeFileMatrix(testXCombo, "%s_selectedFeatures_test_%i.dat" % (fileName, testXCombo.shape[0]))
+    writeFileMatrix(testYCombo, "%s_labels_test_%i.dat" % (fileName, testYCombo.shape[0]))
+
 
 
 #-------------Data functions----------------------------------------------------------
@@ -125,9 +155,13 @@ def featureSelection(matrixX, matrixY, seed, fileName):
         writeFileArray(dictionary, "%s_featureImportance_seed-%i.csv" % (fileName, seed))
         return [clf, featureMatrix]
 
+def featureSelectionTrimed(matrixX, matrixY, fileName):
+    [clf, featureMatrix] = featureSelection(matrixX, matrixY, finalSeed, fileName)
+    return numpy.hsplit(featureMatrix, numFeatures)[0]
+
 
 def featureSelectionTestOptions(matrixX, matrixY, fileName):
-    seeds = [0]#, 7, 16, 1, 24, 72, 48, 96, 28, 56, 112]
+    seeds = [0, 7, 16, 1, 24, 72]#, 48, 96, 28, 56, 112]
     for seed in seeds:
         start = timeit.default_timer()
         [clf, featureMatrix] = featureSelection(matrixX, matrixY, seed, fileName)
@@ -153,6 +187,22 @@ def featureSelectionTestOptions(matrixX, matrixY, fileName):
         stop = timeit.default_timer()
         print "Lasted %i secs" % (stop-start)
     return featureMatrix
+
+
+def selectSubsample(matrixX, matrixY, splits):
+    separateX = numpy.hsplit(matrixX, splits)
+    separateY = numpy.hsplit(matrixY, splits)
+    trainXFinal, trainYFinal = []
+    testXFinal, testYFinal = []
+    for i in range(len(separateX)):
+        x_train, x_test, y_train, y_test = train_test_split(
+            separateX[i], separateY[i], train_size=trainPercent, random_state=seed)
+        trainXFinal.append(x_train)
+        trainYFinal.append(y_train)
+        testXFinal.append(x_test)
+        testYFinal.append(y_test)
+    return [trainXFinal, trainYFinal, testXFinal, testYFinal]
+
 
 
 #------------------------MAIN--------------------------
@@ -191,6 +241,7 @@ def mainAll(filesList):
     start = timeit.default_timer()
     featuresFinal = None
     labelsFinal = None
+    splits = None
     outCombinedFile = "./output/"
     for fileRow in filesList:
         inFile = "./LabeledData/%s.csv" % fileRow
@@ -198,23 +249,32 @@ def mainAll(filesList):
         outCombinedFile += "%s--" % fileRow
         if(featuresFinal == None):
             [featuresFinal, labelsFinal] = processFile(inFile, outFile)
+            splits.append(labelsFinal.shape[0])
         else:
             [features, labels] = processFile(inFile, outFile)
+            splits.append(labels.shape[0])
             featuresFinal = numpy.concatenate((featuresFinal, features), axis=0)
             labelsFinal = numpy.concatenate((labelsFinal, labels), axis=0)
-            break
 
     print "Size of Combined Feature Matrix: (%i, %i)" % (featuresFinal.shape[0], featuresFinal.shape[1])
     print "Size of Combined Labels Matrix: (%i, %i)" % (labelsFinal.shape[0], labelsFinal.shape[1])
 
     # preform feature selection
     print "Performing Feature Selection..."
-    featureMatrix = featureSelectionTestOptions(featuresFinal, labelsFinal, outCombinedFile)
+    # used to create different results for seeds and number of features
+    #    featureMatrix = featureSelectionTestOptions(featuresFinal, labelsFinal, outCombinedFile)
+    featureMatrix = featureSelectionTrimed(featuresFinal, labelsFinal, outCombinedFile)
     print "Size of Selected Feature Matrix: (%i, %i)" % (featureMatrix.shape[0], featureMatrix.shape[1])
-    stop = timeit.default_timer()
-
     writeFileMatrix(featureMatrix, "%s_selectedFeatures_%s.dat" % (outCombinedFile, featureMatrix.shape[0]))
 
+    # split into training and test data
+    [trainXList, trainYList, testXList, testYList] = selectSubsample(featureMatrix, labelsFinal, splits)
+    writeOutSamples(trainXList, trainYList, testXList, testYList, filesList)
+    writeOutCombinedSamples(trainXList, trainYList, testXList, testYList, outCombinedFile)
+
+
+
+    stop = timeit.default_timer()
     print "\nRuntime: " + str(stop - start)
 
 
