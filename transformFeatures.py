@@ -76,8 +76,6 @@ def writeOutCombinedSamples(trainX, trainY, testX, testY, fileName):
     writeFileMatrix(testYCombo, "%s_labels_test_%i.dat" % (fileName, testYCombo.shape[0]))
 
 def writeOutSplitMatrix(featureMatrix, splits, fileNames):
-    print featureMatrix.shape
-    print splits
     separateMatrices = numpy.vsplit(featureMatrix, splits)
     for i in range(len(fileNames)):
         writeFileMatrix(separateMatrices[i], "./output/%s_selectedFeatures_%i.dat" % (fileNames[i], separateMatrices[i].shape[0]))
@@ -197,17 +195,13 @@ def featureSelectionTestOptions(matrixX, matrixY, fileName):
 
 
 def selectSubsample(matrixX, matrixY, splits):
-    print splits
     separateX = numpy.vsplit(matrixX, splits)
     separateY = numpy.vsplit(matrixY, splits)
-    print separateY
     trainXFinal = []
     trainYFinal = []
     testXFinal = []
     testYFinal = []
     for i in range(len(separateX)):
-        print separateY[i].shape
-        print separateX[i].shape
         x_train, x_test, y_train, y_test = train_test_split(
             separateX[i], separateY[i], train_size=trainPercent, random_state=finalSeed)
         trainXFinal.append(x_train)
@@ -255,6 +249,7 @@ def mainAll(filesList):
     featuresFinal = None
     labelsFinal = None
     splits = []
+    total = 0
     outCombinedFile = "./output/"
     for fileRow in filesList:
         inFile = "./LabeledData/%s.csv" % fileRow
@@ -262,12 +257,13 @@ def mainAll(filesList):
         outCombinedFile += "%s--" % fileRow
         if(featuresFinal == None):
             [featuresFinal, labelsFinal] = processFile(inFile, outFile)
-            splits.append(labelsFinal.shape[0])
+            total += labelsFinal.shape[0]
         else:
             [features, labels] = processFile(inFile, outFile)
-            splits.append(labels.shape[0])
+            total += labels.shape[0]
             featuresFinal = numpy.concatenate((featuresFinal, features), axis=0)
             labelsFinal = numpy.concatenate((labelsFinal, labels), axis=0)
+        splits.append(total)
 
     splits.pop()
     print "Size of Combined Feature Matrix: (%i, %i)" % (featuresFinal.shape[0], featuresFinal.shape[1])
@@ -281,13 +277,19 @@ def mainAll(filesList):
     print "Size of Selected Feature Matrix: (%i, %i)" % (featureMatrix.shape[0], featureMatrix.shape[1])
     writeFileMatrix(featureMatrix, "%s_selectedFeatures_%s.dat" % (outCombinedFile, featureMatrix.shape[0]))
 
+    # split into individual files
+    print "Write out separate selected"
+    writeOutSplitMatrix(featureMatrix, splits, filesList)
+
     # split into training and test data
+    print "select subsamples"
     [trainXList, trainYList, testXList, testYList] = selectSubsample(featureMatrix, labelsFinal, splits)
+    print "write out separate samples"
     writeOutSamples(trainXList, trainYList, testXList, testYList, filesList)
+    print "write out combined samples"
     writeOutCombinedSamples(trainXList, trainYList, testXList, testYList, outCombinedFile)
 
-    # split into individual files
-    writeOutSplitMatrix(featureMatrix, splits, filesList)
+
 
 
     stop = timeit.default_timer()
