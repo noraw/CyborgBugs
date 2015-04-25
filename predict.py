@@ -27,6 +27,22 @@ def getSizeFromFileName(myfile):
     parts2 = parts[-1].split(".")
     return parts2[0]
 
+def createTrainingData(fileList):
+    for i in range(1, len(fileList)):
+        inX = folder + fileInfo[0] + "_selectedFeatures_" + fileInfo[1] + ".dat"
+        inY = folder + fileInfo[0] + "_labels_" + fileInfo[1] + ".dat"
+        X  = readFileMatrix(inX, fileInfo[1])
+        Y  = readFileMatrix(inY, fileInfo[1])
+
+        if(i == 1):
+            XFinal = X
+            YFinal = Y
+        else:
+            XFinal = numpy.concatenate((XFinal, X), axis=0)
+            YFinal = numpy.concatenate((YFinal, Y), axis=0)
+
+    return [XFinal, YFinal]
+
 
 def predict(clf, X, y, X_test, y_test, outname):
     results = []
@@ -82,71 +98,82 @@ parser.add_argument("-M", "--Mixature", action="store_true", help="run mixature 
 # OTHER INPUT VARIABLES
 outname = "./output/" # assigned later
 outLines = []
-inXtrain = "./input/04_Lab_FD_031114--12_Lab_C_060514--13_Lab_Cmac_031114--17_Lab_Cmac_031214--21_Lab_Corrizo_051614--29_Lab_Corrizo_051914--31_Lab_Troyer_052114--35_Lab_Val_100714--_selectedFeatures_train_si123ze.dat"
-inXtest = "./input/04_Lab_FD_031114--12_Lab_C_060514--13_Lab_Cmac_031114--17_Lab_Cmac_031214--21_Lab_Corrizo_051614--29_Lab_Corrizo_051914--31_Lab_Troyer_052114--35_Lab_Val_100714--_selectedFeatures_test_si123ze.dat"
-inYtrain = "./input/04_Lab_FD_031114--12_Lab_C_060514--13_Lab_Cmac_031114--17_Lab_Cmac_031214--21_Lab_Corrizo_051614--29_Lab_Corrizo_051914--31_Lab_Troyer_052114--35_Lab_Val_100714--_labels_train_si123ze.dat"
-inYtest = "./input/04_Lab_FD_031114--12_Lab_C_060514--13_Lab_Cmac_031114--17_Lab_Cmac_031214--21_Lab_Corrizo_051614--29_Lab_Corrizo_051914--31_Lab_Troyer_052114--35_Lab_Val_100714--_labels_test_si123ze.dat"
-
-outLines.append("Input Files:\n")
-outLines.append("inXtrain: %s\n" % inXtrain)
-outLines.append("inXtest: %s\n" % inXtrain)
-outLines.append("inYtrain: %s\n" % inXtrain)
-outLines.append("inYtest: %s\n" % inXtrain)
-outLines.append("\n")
-
+filesList = [
+    ["04_Lab_FD_031114", 13571],
+    ["12_Lab_C_060514", 40504],
+    ["13_Lab_Cmac_031114", 6032],
+    ["17_Lab_Cmac_031214", 4988],
+    ["21_Lab_Corrizo_051614", 86619],
+    ["29_Lab_Corrizo_051914", 73811],
+    ["31_Lab_Troyer_052114", 14482],
+    ["35_Lab_Val_100714", 47538]
+]
+folder = "./input/"
 args = parser.parse_args()
 print args;
 
-Xtrain = readFileMatrix(inXtrain, getSizeFromFileName(inXtrain))
-Xtest  = readFileMatrix(inXtrain, getSizeFromFileName(inXtrain))
-Ytrain = readFileMatrix(inXtrain, getSizeFromFileName(inXtrain))
-Ytest  = readFileMatrix(inXtrain, getSizeFromFileName(inXtrain))
-print "Read in Files Done"
+# want to try it out with each file selected separately as the test data
+# all the other files are combined to be the training data
+for fileInfo in filesList:
+    inXtest = folder + fileInfo[0] + "_selectedFeatures_" + fileInfo[1] + ".dat"
+    inYtest = folder + fileInfo[0] + "_labels_" + fileInfo[1] + ".dat"
+    Xtest  = readFileMatrix(inXtest, fileInfo[1])
+    Ytest  = readFileMatrix(inYtest, fileInfo[1])
 
-outLines.append("X train shape %s\n" % str(Xtrain.shape))
-outLines.append("X test shape %s\n" % str(Xtest.shape))
-outLines.append("Y train shape %s\n" % str(Ytrain.shape))
-outLines.append("Y test shape %s\n" % str(Ytest.shape))
-outLines.append("\n")
+    trainList = filesList
+    trainList.remove(fileInfo)
+    [Xtrain, Ytrain] = createTrainingData(trainList)
 
-print "X train shape %s" % str(Xtrain.shape)
-print "X test shape %s" % str(Xtest.shape)
-print "Y train shape %s" % str(Ytrain.shape)
-print "Y test shape %s" % str(Ytest.shape)
+    outLines.append("Test File:\n")
+    outLines.append("inXtest: %s\n" % inXtest)
+    outLines.append("inYtest: %s\n" % inYtest)
+    outLines.append("Read in Files Done\n")
+    print "Read in Files Done"
 
+    outLines.append("X train shape %s\n" % str(Xtrain.shape))
+    outLines.append("X test shape %s\n" % str(Xtest.shape))
+    outLines.append("Y train shape %s\n" % str(Ytrain.shape))
+    outLines.append("Y test shape %s\n" % str(Ytest.shape))
+    outLines.append("\n")
 
-
-# CLASSIFY!
-if args.LabelSpreading:
-    print "Label Spreading"
-    outname += "LabelSpreading"
-    clf = LabelSpreading(kernel='knn', n_neighbors=7, alpha=0.2, max_iter=30, tol=0.001)
-
-if args.Lasso:
-    alphaIn=5.0
-    print "Lasso: " + str(alphaIn)
-    outname += "lasso"+str(alphaIn)
-    clf = linear_model.Lasso(alpha=alphaIn)
-
-if args.RANSAC:
-    print "RANSAC"
-    outname += "ransac"
-    clf = linear_model.RANSACRegressor(linear_model.LinearRegression())
+    print "X train shape %s" % str(Xtrain.shape)
+    print "X test shape %s" % str(Xtest.shape)
+    print "Y train shape %s" % str(Ytrain.shape)
+    print "Y test shape %s" % str(Ytest.shape)
 
 
-if args.LabelSpreading or args.Lasso or args.RANSAC:
-    results = predict(clf, Xtrain, Ytrain, Xtest, Ytest)
 
-    # output feature importance for graphs
-    outfile = file(outname + "_results.txt", "w")
+    # CLASSIFY!
+    if args.LabelSpreading:
+        print "Label Spreading"
+        outname += "LabelSpreading"
+        clf = LabelSpreading(kernel='knn', n_neighbors=7, alpha=0.2, max_iter=30, tol=0.001)
 
-    for i in range (len(outLines)):
-        outfile.write(outLines[i])
+    if args.Lasso:
+        alphaIn=5.0
+        print "Lasso: " + str(alphaIn)
+        outname += "lasso"+str(alphaIn)
+        clf = linear_model.Lasso(alpha=alphaIn)
 
-    for i in range (len(results)):
-        outfile.write(results[i])
+    if args.RANSAC:
+        print "RANSAC"
+        outname += "ransac"
+        clf = linear_model.RANSACRegressor(linear_model.LinearRegression())
 
-    outfile.close();
+
+    if args.LabelSpreading or args.Lasso or args.RANSAC:
+        results = predict(clf, Xtrain, Ytrain, Xtest, Ytest)
+
+        # output feature importance for graphs
+        outfile = file("%s_%s_results.txt" % (outname, fileInfo[0]), "w")
+
+        for i in range (len(outLines)):
+            outfile.write(outLines[i])
+
+        for i in range (len(results)):
+            outfile.write(results[i])
+
+        outfile.close();
 
 
 
