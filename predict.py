@@ -36,8 +36,8 @@ filesListDebug = [
     ["35_Lab_Val_100714", 4754]
 ]
 
-n_neighbors = [1, 3]
-alphas = [.1, .2]
+n_neighbors = [7, 3]
+alphas = [.2, .1]
 max_iters = [30, 10]
 tols = [.001, .002]
 
@@ -221,8 +221,7 @@ def calculateGridSpot(index, args, neighbor, alpha, max_iter, tol):
 #        outname += "test_"
         Xtest  = readFileMatrix(inXtest, fileInfo[1])
         Ytest  = readFileMatrix(inYtest, fileInfo[1])
-        YOnes = np.zeros_like(Ytest)
-        YOnes.fill(-1)
+        YOnes = -np.ones_like(Ytest)
 
         trainList = list(filesList)
         trainList.remove(fileInfo)
@@ -230,6 +229,10 @@ def calculateGridSpot(index, args, neighbor, alpha, max_iter, tol):
         Xtrain = np.concatenate((Xtrain, Xtest), axis=0)
         Ytrain = np.concatenate((Ytrain, YOnes), axis=0)
 
+#        print "X train shape %s" % str(Xtrain.shape)
+#        print "X test shape %s" % str(Xtest.shape)
+#        print "Y train shape %s" % str(Ytrain.shape)
+#        print "Y test shape %s" % str(Ytest.shape)
 
         outLines.append("Test File:\n")
         outLines.append("inXtest: %s\n" % inXtest)
@@ -246,7 +249,7 @@ def calculateGridSpot(index, args, neighbor, alpha, max_iter, tol):
         outLines.append("X test shape %s\n" % str(Xtest.shape))
         outLines.append("Y train shape %s\n" % str(Ytrain.shape))
         outLines.append("Y test shape %s\n" % str(Ytest.shape))
-        outLines.append("total: %i\n" % (Xtrain.shape[0] + Xtest.shape[0]))
+        #outLines.append("total: %i\n" % (Xtrain.shape[0] + Xtest.shape[0]))
         outLines.append("\n")
 
 
