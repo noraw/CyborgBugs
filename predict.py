@@ -212,7 +212,7 @@ def calculateGridSpot(index, args, neighbor, alpha, max_iter, tol):
 
     for fileInfo in filesList:
         outLines = []
-        outname = "./output/PredictedLabelSpreading" # assigned later
+        outname = "./output/PredictedLabelSpreading/" # assigned later
         inXtest = "%s/%s_selectedFeatures_%i.dat" % (folder, fileInfo[0], fileInfo[1])
         inYtest = "%s/%s_labels_%i.dat" % (folder, fileInfo[0], fileInfo[1])
 # used for debugging
@@ -259,7 +259,7 @@ def calculateGridSpot(index, args, neighbor, alpha, max_iter, tol):
 
         if args.LabelSpreading or args.Factorization:
             start = timeit.default_timer()
-            results = predict(clf, Xtrain, np.ravel(Ytrain), Xtest, np.ravel(Ytest), "%s_%s" % (outname, fileInfo[0]))
+            results = predict(clf, Xtrain, np.ravel(Ytrain), Xtest, np.ravel(Ytest), "%s_%s_%i" % (outname, fileInfo[0], index))
             stop = timeit.default_timer()
             results.append("   total time: %i secs\n" % (stop - start))
 
