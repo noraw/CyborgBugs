@@ -221,10 +221,15 @@ def calculateGridSpot(index, args, neighbor, alpha, max_iter, tol):
 #        outname += "test_"
         Xtest  = readFileMatrix(inXtest, fileInfo[1])
         Ytest  = readFileMatrix(inYtest, fileInfo[1])
+        YOnes = np.zeros_like(Ytest)
+        YOnes.fill(-1)
 
         trainList = list(filesList)
         trainList.remove(fileInfo)
         [Xtrain, Ytrain] = createTrainingData(folder, trainList)
+        Xtrain = np.concatenate((Xtrain, Xtest), axis=0)
+        Ytrain = np.concatenate((Ytrain, YOnes), axis=0)
+
 
         outLines.append("Test File:\n")
         outLines.append("inXtest: %s\n" % inXtest)
