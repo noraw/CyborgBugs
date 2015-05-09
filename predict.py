@@ -9,6 +9,7 @@ import argparse
 import os
 from sklearn import metrics
 from sklearn.semi_supervised import LabelSpreading
+from sklearn.gaussian_process import GaussianProcess
 from scipy import sparse
 import timeit
 from math import sqrt
@@ -42,11 +43,13 @@ max_iters = [30, 80]
 tols = [0.001, 0.0001]
 startIndex = 0
 
+
+nuggets = [2.2204460492503131e-15]
 folder = "./input"
 
 # used for debugging
-#filesList = filesListDebug
-#folder = "./input/debug"
+filesList = filesListDebug
+folder = "./input/debug"
 
 
 #---------------------READ/WRITE FUNCTIONS----------------------------------------
@@ -119,8 +122,9 @@ def createTrainingData(folder, fileList):
         inX = "%s/%s_selectedFeatures_%i.dat" % (folder, fileInfo[0], fileInfo[1])
         inY = "%s/%s_labels_%i.dat" % (folder, fileInfo[0], fileInfo[1])
 # used for debugging
-#        inX = "%s/%s_selectedFeatures_test_%i.dat" % (folder, fileInfo[0], fileInfo[1])
-#        inY = "%s/%s_labels_test_%i.dat" % (folder, fileInfo[0], fileInfo[1])
+        inX = "%s/%s_selectedFeatures_test_%i.dat" % (folder, fileInfo[0], fileInfo[1])
+        inY = "%s/%s_labels_test_%i.dat" % (folder, fileInfo[0], fileInfo[1])
+
         X  = readFileMatrix(inX, fileInfo[1])
         Y  = readFileMatrix(inY, fileInfo[1])
 
@@ -203,12 +207,11 @@ def predict(clf, X, y, X_test, y_test, outname):
 
 
 
-def calculateGridSpot(index, args, neighbor, alpha, max_iter, tol):
+def calculateGridSpotLabelSpreading(index, args, neighbor, alpha, max_iter, tol):
     # want to try it out with each file selected separately as the test data
     # all the other files are combined to be the training data
     startAll = timeit.default_timer()
-    if args.LabelSpreading:
-        print "\nLabelSpreading(%i): %i, %f, %i, %f" % (index, neighbor, alpha, max_iter, tol)
+    print "\nLabelSpreading(%i): %i, %f, %i, %f" % (index, neighbor, alpha, max_iter, tol)
 
     for fileInfo in filesList:
         outLines = []
@@ -216,9 +219,10 @@ def calculateGridSpot(index, args, neighbor, alpha, max_iter, tol):
         inXtest = "%s/%s_selectedFeatures_%i.dat" % (folder, fileInfo[0], fileInfo[1])
         inYtest = "%s/%s_labels_%i.dat" % (folder, fileInfo[0], fileInfo[1])
 # used for debugging
-#        inXtest = "%s/%s_selectedFeatures_test_%i.dat" % (folder, fileInfo[0], fileInfo[1])
-#        inYtest = "%s/%s_labels_test_%i.dat" % (folder, fileInfo[0], fileInfo[1])
-#        outname += "test_"
+        inXtest = "%s/%s_selectedFeatures_test_%i.dat" % (folder, fileInfo[0], fileInfo[1])
+        inYtest = "%s/%s_labels_test_%i.dat" % (folder, fileInfo[0], fileInfo[1])
+        outname += "test_"
+
         Xtest  = readFileMatrix(inXtest, fileInfo[1])
         Ytest  = readFileMatrix(inYtest, fileInfo[1])
         YOnes = -np.ones_like(Ytest)
@@ -255,55 +259,121 @@ def calculateGridSpot(index, args, neighbor, alpha, max_iter, tol):
 
 
         # CLASSIFY!
-        if args.LabelSpreading:
-            outname += "LabelSpreading"
-            clf = LabelSpreading(kernel='knn', n_neighbors=neighbor, alpha=alpha, max_iter=max_iter, tol=tol)
+        outname += "LabelSpreading"
+        clf = LabelSpreading(kernel='knn', n_neighbors=neighbor, alpha=alpha, max_iter=max_iter, tol=tol)
 
-        if args.Factorization:
-            alphaIn=5.0
-            print "Lasso: " + str(alphaIn)
-            outname += "lasso"+str(alphaIn)
-            clf = linear_model.Lasso(alpha=alphaIn)
+        start = timeit.default_timer()
+        results = predict(clf, Xtrain, np.ravel(Ytrain), Xtest, np.ravel(Ytest), "%s_%s_%i" % (outname, fileInfo[0], index))
+        stop = timeit.default_timer()
+        results.append("   total time: %i secs\n" % (stop - start))
 
-        if args.LabelSpreading or args.Factorization:
-            start = timeit.default_timer()
-            results = predict(clf, Xtrain, np.ravel(Ytrain), Xtest, np.ravel(Ytest), "%s_%s_%i" % (outname, fileInfo[0], index))
-            stop = timeit.default_timer()
-            results.append("   total time: %i secs\n" % (stop - start))
+        outfile = file("%s_%s_%i_results.txt" % (outname, fileInfo[0], index), "w")
 
-            outfile = file("%s_%s_%i_results.txt" % (outname, fileInfo[0], index), "w")
+        for i in range (len(outLines)):
+            outfile.write(outLines[i])
 
-            for i in range (len(outLines)):
-                outfile.write(outLines[i])
+        for i in range (len(results)):
+            outfile.write(results[i])
 
-            for i in range (len(results)):
-                outfile.write(results[i])
-
-            outfile.close();
+        outfile.close();
 
     stopAll = timeit.default_timer()
     print "Done predicting: %i secs" % (stopAll - startAll)
 
+
+def calculateGridSpotGuassianProcess(index, args, nugget):
+    # want to try it out with each file selected separately as the test data
+    # all the other files are combined to be the training data
+    startAll = timeit.default_timer()
+    print "\nGuassianProcess(%i): %f" % (index, nugget)
+
+    for fileInfo in filesList:
+        outLines = []
+        outname = "./output/PredictedLabelSpreading/" # assigned later
+        inXtest = "%s/%s_selectedFeatures_%i.dat" % (folder, fileInfo[0], fileInfo[1])
+        inYtest = "%s/%s_labels_%i.dat" % (folder, fileInfo[0], fileInfo[1])
+# used for debugging
+        inXtest = "%s/%s_selectedFeatures_test_%i.dat" % (folder, fileInfo[0], fileInfo[1])
+        inYtest = "%s/%s_labels_test_%i.dat" % (folder, fileInfo[0], fileInfo[1])
+        outname += "test_"
+
+        Xtest  = readFileMatrix(inXtest, fileInfo[1])
+        Ytest  = readFileMatrix(inYtest, fileInfo[1])
+
+        trainList = list(filesList)
+        trainList.remove(fileInfo)
+        [Xtrain, Ytrain] = createTrainingData(folder, trainList)
+
+        print "X train shape %s" % str(Xtrain.shape)
+        print "X test shape %s" % str(Xtest.shape)
+        print "Y train shape %s" % str(Ytrain.shape)
+        print "Y test shape %s" % str(Ytest.shape)
+
+        outLines.append("Test File:\n")
+        outLines.append("inXtest: %s\n" % inXtest)
+        outLines.append("inYtest: %s\n" % inYtest)
+
+        outLines.append("\nVariables:\n")
+        outLines.append("nuggest: %i\n" % nugget)
+
+        outLines.append("\nRead in Files Done\n")
+        outLines.append("X train shape %s\n" % str(Xtrain.shape))
+        outLines.append("X test shape %s\n" % str(Xtest.shape))
+        outLines.append("Y train shape %s\n" % str(Ytrain.shape))
+        outLines.append("Y test shape %s\n" % str(Ytest.shape))
+        #outLines.append("total: %i\n" % (Xtrain.shape[0] + Xtest.shape[0]))
+        outLines.append("\n")
+
+
+
+        # CLASSIFY!
+        outname += "Guassian"
+        clf = GaussianProcess(regr='constant', corr='squared_exponential', beta0=None, storage_mode='light', verbose=False, theta0=0.1, thetaL=None, thetaU=None, optimizer='fmin_cobyla', random_start=1, normalize=False, nugget=nugget, random_state=24)
+
+        start = timeit.default_timer()
+        results = predict(clf, Xtrain, np.ravel(Ytrain), Xtest, np.ravel(Ytest), "%s_%s_%i" % (outname, fileInfo[0], index))
+        stop = timeit.default_timer()
+        results.append("   total time: %i secs\n" % (stop - start))
+
+        outfile = file("%s_%s_%i_results.txt" % (outname, fileInfo[0], index), "w")
+
+        for i in range (len(outLines)):
+            outfile.write(outLines[i])
+
+        for i in range (len(results)):
+            outfile.write(results[i])
+
+        outfile.close();
+
+    stopAll = timeit.default_timer()
+    print "Done predicting: %i secs" % (stopAll - startAll)
 
 #---------------------MAIN FUNCTION------------------------------------------------------------------------
 
 # argument parsing.
 parser = argparse.ArgumentParser(description='Predict CyborgBugs.')
 parser.add_argument("-L", "--LabelSpreading", action="store_true", help="run LabelSpreading")
-parser.add_argument("-F", "--Factorization", action="store_true", help="run non-negative factorization model")
+parser.add_argument("-G", "--GuassianProcess", action="store_true", help="run GaussianProcess")
 
 
 args = parser.parse_args()
 print args;
 
 index = 1
-for neighbor in n_neighbors:
-    for alpha in alphas:
-        for max_iter in max_iters:
-            for tol in tols:
-                if(index >= startIndex):
-                    calculateGridSpot(index, args, neighbor, alpha, max_iter, tol)
-                index +=1
+if args.LabelSpreading:
+    for neighbor in n_neighbors:
+        for alpha in alphas:
+            for max_iter in max_iters:
+                for tol in tols:
+                    if(index >= startIndex):
+                        calculateGridSpotLabelSpreading(index, args, neighbor, alpha, max_iter, tol)
+                    index +=1
+
+if args.GuassianProcess:
+    for nugget in nuggets:
+        if(index >= startIndex):
+            calculateGridSpotGuassianProcess(index, args, nugget)
+        index +=1
 
 
 print "------------------------ALL DONE!!!!---------------------------------"
