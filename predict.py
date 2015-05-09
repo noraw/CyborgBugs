@@ -7,9 +7,10 @@
 import numpy as np
 import argparse
 import os
+import random
 from sklearn import metrics
 from sklearn.semi_supervised import LabelSpreading
-from sklearn.gaussian_process import GaussianProcess
+from sklearn.cluster import AgglomerativeClustering
 from scipy import sparse
 import timeit
 from math import sqrt
@@ -27,14 +28,14 @@ filesList = [
 ]
 
 filesListDebug = [
-    ["04_Lab_FD_031114", 1358],
-    ["12_Lab_C_060514", 4051],
-    ["13_Lab_Cmac_031114", 604],
-    ["17_Lab_Cmac_031214", 499],
-    ["21_Lab_Corrizo_051614", 8662],
-    ["29_Lab_Corrizo_051914", 7382],
-    ["31_Lab_Troyer_052114", 1449],
-    ["35_Lab_Val_100714", 4754]
+    ["04_Lab_FD_031114", 1358, 3],
+    ["12_Lab_C_060514", 4051, 6],
+    ["13_Lab_Cmac_031114", 604, 5],
+    ["17_Lab_Cmac_031214", 499, 5],
+    ["21_Lab_Corrizo_051614", 8662, 6],
+    ["29_Lab_Corrizo_051914", 7382, 6],
+    ["31_Lab_Troyer_052114", 1449, 6],
+    ["35_Lab_Val_100714", 4754, 6]
 ]
 
 n_neighbors = [7, 12]
@@ -44,7 +45,7 @@ tols = [0.001, 0.0001]
 startIndex = 0
 
 
-nuggets = [2.2204460492503131e-15]
+n_inits = [10, 20]
 folder = "./input"
 
 # used for debugging
@@ -144,6 +145,68 @@ def convertToDictLabels(values, classes):
         dictItem["Label %i" % classes[i]] = values[i]
     return dictItem
 
+def convertClusterLabels(labels, cluster_labels):
+    newLabels = []
+    for i in range(len(labels)):
+        newLabels.append(cluster_labels[labels[i]])
+    return newLabels
+
+def findClusterLabels(X, y, labels):
+    countOfLabels = {0: {1:0, 2:0, 3:0, 4:0, 5:0, 6:0},
+                    1: {1:0, 2:0, 3:0, 4:0, 5:0, 6:0},
+                    2: {1:0, 2:0, 3:0, 4:0, 5:0, 6:0},
+                    3: {1:0, 2:0, 3:0, 4:0, 5:0, 6:0},
+                    4: {1:0, 2:0, 3:0, 4:0, 5:0, 6:0},
+                    5: {1:0, 2:0, 3:0, 4:0, 5:0, 6:0}}
+    percentOfLabels = {0: {1:0, 2:0, 3:0, 4:0, 5:0, 6:0},
+                    1: {1:0, 2:0, 3:0, 4:0, 5:0, 6:0},
+                    2: {1:0, 2:0, 3:0, 4:0, 5:0, 6:0},
+                    3: {1:0, 2:0, 3:0, 4:0, 5:0, 6:0},
+                    4: {1:0, 2:0, 3:0, 4:0, 5:0, 6:0},
+                    5: {1:0, 2:0, 3:0, 4:0, 5:0, 6:0}}
+    actualLabelCounts = {1:0, 2:0, 3:0, 4:0, 5:0, 6:0}
+
+    print labels[1195]
+    print labels[1054]
+    print labels[248]
+
+    for i in range(len(labels)):
+        count = countOfLabels[labels[i]][y[i]]
+        countOfLabels[labels[i]][y[i]] = count + 1
+        actualLabelCounts[y[i]] = actualLabelCounts[y[i]] + 1
+
+    for i in range(6):
+        print "%i: %s" % (i, str(countOfLabels[i]))
+    print actualLabelCounts
+
+    for i in range(6):
+        total = 0
+        for j in range(1,7):
+            total += countOfLabels[i][j]
+        for j in range(1,7):
+            if(total !=0):
+                percent = float(countOfLabels[i][j])/float(total)
+                percentOfLabels[i][j] = "%.2f" % (percent)
+    
+
+    return []
+
+def getKMeansClusterInitArray(X, y, clusterNum):
+    labelIndices = {1:[], 2:[], 3:[], 4:[], 5:[], 6:[]}
+    for i in range(len(y)):
+        labelIndices[y[i]].append(i)
+
+    indices = []
+    for i in range(1, 7):
+        if(len(labelIndices[i]) > 0):
+            indices.append(random.sample(labelIndices[i], 1)[0])
+    print indices
+
+    clusterCenters = np.ndarray(shape=(len(indices), X.shape[1]), dtype=float, order='F')
+    for i in range(len(indices)):
+        clusterCenters.put(i, X[indices[i]])
+    return clusterCenters
+
 
 def predict(clf, X, y, X_test, y_test, outname):
     results = []
@@ -203,8 +266,18 @@ def predict(clf, X, y, X_test, y_test, outname):
 
     return results
 
+def predictKmeans(clf, X, y, X_test, y_test, outname):
+    results = []
+    time0 = timeit.default_timer()
+    results.append("\nResults:\n")
 
+    clf.fit_predict(X)
+    time1 = timeit.default_timer()
+    results.append("   fit done (%i secs)\n" % (time1 - time0))
 
+    cluster_labels = findClusterLabels(X, y, clf.labels_)
+#    y_pred = convertClusterLabels(clf.predict(X_test), cluster_labels)
+    return results
 
 
 def calculateGridSpotLabelSpreading(index, args, neighbor, alpha, max_iter, tol):
@@ -281,15 +354,15 @@ def calculateGridSpotLabelSpreading(index, args, neighbor, alpha, max_iter, tol)
     print "Done predicting: %i secs" % (stopAll - startAll)
 
 
-def calculateGridSpotGuassianProcess(index, args, nugget):
+def calculateGridSpotKMeans(index, args, n_init, max_iter, tol):
     # want to try it out with each file selected separately as the test data
     # all the other files are combined to be the training data
     startAll = timeit.default_timer()
-    print "\nGuassianProcess(%i): %f" % (index, nugget)
+    print "\nKMeans(%i): %i, %i, %f" % (index, n_init, max_iter, tol)
 
     for fileInfo in filesList:
         outLines = []
-        outname = "./output/PredictedLabelSpreading/" # assigned later
+        outname = "./output/PredictedKMeans/" # assigned later
         inXtest = "%s/%s_selectedFeatures_%i.dat" % (folder, fileInfo[0], fileInfo[1])
         inYtest = "%s/%s_labels_%i.dat" % (folder, fileInfo[0], fileInfo[1])
 # used for debugging
@@ -314,7 +387,9 @@ def calculateGridSpotGuassianProcess(index, args, nugget):
         outLines.append("inYtest: %s\n" % inYtest)
 
         outLines.append("\nVariables:\n")
-        outLines.append("nuggest: %i\n" % nugget)
+        outLines.append("n_init: %i\n" % n_init)
+        outLines.append("max_iter: %i\n" % max_iter)
+        outLines.append("tol: %f\n" % tol)
 
         outLines.append("\nRead in Files Done\n")
         outLines.append("X train shape %s\n" % str(Xtrain.shape))
@@ -327,11 +402,13 @@ def calculateGridSpotGuassianProcess(index, args, nugget):
 
 
         # CLASSIFY!
-        outname += "Guassian"
-        clf = GaussianProcess(regr='constant', corr='squared_exponential', beta0=None, storage_mode='light', verbose=False, theta0=0.1, thetaL=None, thetaU=None, optimizer='fmin_cobyla', random_start=1, normalize=False, nugget=nugget, random_state=24)
+        outname += "KMeans"
+        init = getKMeansClusterInitArray(Xtest, np.ravel(Ytest), fileInfo[2])
+        clf = AgglomerativeClustering(n_clusters=fileInfo[2], affinity='euclidean', connectivity=None, n_components=None, compute_full_tree='auto', linkage='ward')
+        #clf = KMeans(n_clusters=fileInfo[2], init=init, n_init=10, max_iter=300, tol=0.0001, precompute_distances='auto', verbose=0, random_state=24, copy_x=True, n_jobs=1)
 
         start = timeit.default_timer()
-        results = predict(clf, Xtrain, np.ravel(Ytrain), Xtest, np.ravel(Ytest), "%s_%s_%i" % (outname, fileInfo[0], index))
+        results = predictKmeans(clf, Xtest, np.ravel(Ytest), Xtest, np.ravel(Ytest), "%s_%s_%i" % (outname, fileInfo[0], index))
         stop = timeit.default_timer()
         results.append("   total time: %i secs\n" % (stop - start))
 
@@ -344,6 +421,7 @@ def calculateGridSpotGuassianProcess(index, args, nugget):
             outfile.write(results[i])
 
         outfile.close();
+        break
 
     stopAll = timeit.default_timer()
     print "Done predicting: %i secs" % (stopAll - startAll)
@@ -353,9 +431,9 @@ def calculateGridSpotGuassianProcess(index, args, nugget):
 # argument parsing.
 parser = argparse.ArgumentParser(description='Predict CyborgBugs.')
 parser.add_argument("-L", "--LabelSpreading", action="store_true", help="run LabelSpreading")
-parser.add_argument("-G", "--GuassianProcess", action="store_true", help="run GaussianProcess")
+parser.add_argument("-K", "--KMeans", action="store_true", help="run KMeans")
 
-
+random.seed(24)
 args = parser.parse_args()
 print args;
 
@@ -369,11 +447,16 @@ if args.LabelSpreading:
                         calculateGridSpotLabelSpreading(index, args, neighbor, alpha, max_iter, tol)
                     index +=1
 
-if args.GuassianProcess:
-    for nugget in nuggets:
-        if(index >= startIndex):
-            calculateGridSpotGuassianProcess(index, args, nugget)
-        index +=1
+if args.KMeans:
+    for n_init in n_inits:
+        for max_iter in max_iters:
+            for tol in tols:
+                if(index >= startIndex):
+                    calculateGridSpotKMeans(index, args, n_init, max_iter, tol)
+                index +=1
+                break
+            break
+        break
 
 
 print "------------------------ALL DONE!!!!---------------------------------"
