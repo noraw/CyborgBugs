@@ -36,11 +36,11 @@ filesListDebug = [
     ["35_Lab_Val_100714", 4754]
 ]
 
-n_neighbors = [2, 4, 6, 7, 8, 10, 12]
-alphas = [0.1,0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]
-max_iters = [10, 20, 30, 40, 80, 100, 120]
-tols = [0.01, 0.001, 0.0001, 0.00001, 0.000001]
-
+n_neighbors = [7, 12]
+alphas = [0.1, 0.5, 0.9]
+max_iters = [30, 80]
+tols = [0.001, 0.0001]
+startIndex = 0
 
 folder = "./input"
 
@@ -301,7 +301,8 @@ for neighbor in n_neighbors:
     for alpha in alphas:
         for max_iter in max_iters:
             for tol in tols:
-                calculateGridSpot(index, args, neighbor, alpha, max_iter, tol)
+                if(index >= startIndex):
+                    calculateGridSpot(index, args, neighbor, alpha, max_iter, tol)
                 index +=1
 
 
