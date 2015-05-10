@@ -5,26 +5,48 @@ import random
 import timeit
 import numpy
 from sets import Set
+from sklearn import metrics
 
 #-------------Global Config variables-----------------------
 LabelOptions = ['np', 'c', 'e1', 'e2', 'd', 'g']
 LabelToIntConversion = {'np': 1, 'c': 2, 'e1': 3, 'e2': 4, 'd': 5, 'g': 6}
 
 #------------Variables that can easily be changed to affect output-------------------------
-lenOfFourier = 100
-numFeatures = 12
-finalSeed = 24
-trainPercent = .9
+typeList = [["LabelSpreading", 21]]
 
+
+filesList = [
+    ["04_Lab_FD_031114", 13571],
+    ["12_Lab_C_060514", 40504],
+    ["13_Lab_Cmac_031114", 6032],
+    ["17_Lab_Cmac_031214", 4988],
+    ["21_Lab_Corrizo_051614", 86619],
+    ["29_Lab_Corrizo_051914", 73811],
+    ["31_Lab_Troyer_052114", 14482],
+    ["35_Lab_Val_100714", 47538]
+]
+
+predictedFolder = "./analyzeMinutes/input"
+trueFolder = "./input"
+secondsFolder = "./analyzeMinutes/inputSeconds"
+
+outFolder = "./analyzeMinutes/output"
 
 #-------------Input/Output functions----------------------------------------
 def readFile(fileName):
     csvfile = open(fileName)
     fileDict = csv.DictReader(csvfile)
-    return fileDict
+    array = []
+    for row in fileDict:
+        array.append(float(row['Value']))
+    return array
 
-def writeFileMatrix(matrix, fileName):
-    matrix.tofile(fileName)
+
+def readFileMatrix(myfile, size):
+    array = numpy.fromfile(myfile, dtype=numpy.float64, count=-1, sep="")
+    array = numpy.reshape(array,(size,-1))
+    return array
+
 
 def writeFileArray(dictionary, fileName):
     # output feature importance for graphs
@@ -46,269 +68,129 @@ def writeFileArray(dictionary, fileName):
     outfile.close();
 
 
-def writeOutSamples(trainX, trainY, testX, testY, fileNames):
-    for i in range(len(fileNames)):
-        writeFileMatrix(trainX[i], "./output/%s_selectedFeatures_train_%i.dat" % (fileNames[i], trainX[i].shape[0]))
-        writeFileMatrix(trainY[i], "./output/%s_labels_train_%i.dat" % (fileNames[i], trainY[i].shape[0]))
-        writeFileMatrix(testX[i], "./output/%s_selectedFeatures_test_%i.dat" % (fileNames[i], testX[i].shape[0]))
-        writeFileMatrix(testY[i], "./output/%s_labels_test_%i.dat" % (fileNames[i], testY[i].shape[0]))
+def writeFileMatrixCSV(matrix, fileName):
+    outfile = file(fileName, "w")
+    outfile.write('"Confusion Matrix","1","2","3","4","5","6"\n');
+    rows = matrix.shape[0]
+    cols = matrix.shape[1]
 
+    for row in range(rows):
+        outline = "%i," % (row+1)
+        for col in range(cols):
+            outline += "%i," % matrix[row][col]
+        outline += "\n"
+        outfile.write(outline)
 
-def writeOutCombinedSamples(trainX, trainY, testX, testY, fileName):
-    trainXCombo = trainX[0]
-    trainYCombo = trainY[0]
-    testXCombo = testX[0]
-    testYCombo = testY[0]
+    outfile.close()
 
-    for i in range(1, len(trainX)):
-        trainXCombo = numpy.concatenate((trainXCombo, trainX[i]), axis=0)
-        trainYCombo = numpy.concatenate((trainYCombo, trainY[i]), axis=0)
-        testXCombo = numpy.concatenate((testXCombo, testX[i]), axis=0)
-        testYCombo = numpy.concatenate((testYCombo, testY[i]), axis=0)
-
-        
-    writeFileMatrix(trainXCombo, "%s_selectedFeatures_train_%i.dat" % (fileName, trainXCombo.shape[0]))
-    writeFileMatrix(trainYCombo, "%s_labels_train_%i.dat" % (fileName, trainYCombo.shape[0]))
-    writeFileMatrix(testXCombo, "%s_selectedFeatures_test_%i.dat" % (fileName, testXCombo.shape[0]))
-    writeFileMatrix(testYCombo, "%s_labels_test_%i.dat" % (fileName, testYCombo.shape[0]))
-
-def writeOutSplitMatrix(featureMatrix, splits, fileNames):
-    separateMatrices = numpy.vsplit(featureMatrix, splits)
-    for i in range(len(fileNames)):
-        writeFileMatrix(separateMatrices[i], "./output/%s_selectedFeatures_%i.dat" % (fileNames[i], separateMatrices[i].shape[0]))
 
 
 #-------------Data functions----------------------------------------------------------
-def groupIntoSeconds(inDict):
-    secDict = []
-    intSec = -1
-    firstSec = True
-    voltsArray = []
-    testSet = Set()
-    for row in inDict:
-        if (intSec == -1):
-            intSec = int(float(row['sec']))
-        if (firstSec and intSec != int(float(row['sec']))):
-            firstSec = False
-            intSec = int(float(row['sec']))
-            label = row['Label']
-        if (not firstSec):
-            #print "Sec: " + str(intSec) + "      " + row['sec']
-            if(intSec == int(float(row['sec']))):
-                voltsArray.append(float(row['Volts']))
-            else:
-                #print len(voltsArray)
-                if(label in LabelOptions):
-                    testSet.add(label)
-                    secDict.append({'sec': intSec, 
-                        'Label': LabelToIntConversion[label], 
-                        'VoltsArray': voltsArray})
-                intSec = int(float(row['sec']))
-                label = row['Label']
-                voltsArray = [float(row['Volts'])]
-        #if(len(secDict) > 300): break
-    secDict.pop()
-    print testSet
-    return secDict
+def groupIntoMinutes(secondsArray):
+    minDict = []
+    minutes = []
+    startSecond = secondsArray[0]
+    endSecond = secondsArray[-1]
+    startMinute = int(startSecond/60)
+    endMinute = int(endSecond/60)
+
+    startIndex = 0
+    for i in range(startMinute, endMinute+1):
+        endIndex = startIndex + ((i+1)*60-secondsArray[startIndex]) - 1
+        endIndex = min(endIndex, len(secondsArray)-1)
+        row = {"minute":i, "startIndex": int(startIndex), "endIndex": int(endIndex)}
+        minDict.append(row)
+        minutes.append(i)
+        startIndex = endIndex + 1
+    return [minDict, minutes]
 
 
-def applyFourierTransform(secDict):
-    matrix = numpy.zeros(shape=(len(secDict),lenOfFourier), dtype=numpy.float64)
-    rowId = 0
-    for row in secDict:
-        fourierList = numpy.fft.fft(row['VoltsArray'], lenOfFourier)
-        mag = numpy.abs(fourierList)
-        for i in range(lenOfFourier):
-            matrix[rowId][i] = mag[i]
-        rowId +=1
-    matrices = numpy.hsplit(matrix, [lenOfFourier/2])
-    return matrices[0]
+def groupValues(labels, minutesDict):
+    newLabels = []
 
-def getMatrixOfSeconds(secDict):
-    matrix = numpy.zeros(shape=(len(secDict),1), dtype=numpy.float64)
-    rowId = 0
-    for row in secDict:
-        matrix[rowId] = row['sec']
-        rowId +=1
-    return matrix
+    for row in minutesDict:
+        labelCount = [0, 0, 0, 0, 0, 0]
+        for i in range(row['startIndex'], row['endIndex']+1):
+            labelIndex = int(labels[i]) - 1
+            currentCount = labelCount[labelIndex]
+            labelCount[labelIndex] = currentCount + 1
+        maxCount = max(labelCount)
+        newLabels.append(labelCount.index(maxCount) + 1)
 
-def getMatrixOfLabels(secDict):
-    matrix = numpy.zeros(shape=(len(secDict),1), dtype=numpy.float64)
-    rowId = 0
-    for row in secDict:
-        matrix[rowId] = row['Label']
-        rowId +=1
-    return matrix
- 
-def featureSelection(matrixX, matrixY, seed, fileName):
-        clf = RandomForestClassifier(n_estimators=240,
-            random_state=seed,
-            oob_score=True)
-        clf.fit(matrixX, numpy.ravel(matrixY))
-        featureMatrix = clf.transform(matrixX)
-        accuracy = clf.score(matrixX, matrixY)
-        oob_score = clf.oob_score_
-
-        # print out oob_score and accuracy
-        dictionary = [{"ID":"oob_score", "Value":oob_score}]
-        dictionary.append({"ID":"Accuracy", "Value":accuracy})
-        for i in range(len(clf.feature_importances_)):
-            dictionary.append({"ID":i+1, "Value":clf.feature_importances_[i]})
-        writeFileArray(dictionary, "%s_featureImportance_seed-%i.csv" % (fileName, seed))
-        return [clf, featureMatrix]
-
-def featureSelectionTrimed(matrixX, matrixY, fileName):
-    [clf, featureMatrix] = featureSelection(matrixX, matrixY, finalSeed, fileName)
-    return numpy.hsplit(featureMatrix, [numFeatures])[0]
+    return newLabels
 
 
-def featureSelectionTestOptions(matrixX, matrixY, fileName):
-    seeds = [24]#[0, 7, 16, 1, 24, 72]#, 48, 96, 28, 56, 112]
-    for seed in seeds:
-        start = timeit.default_timer()
-        [clf, featureMatrix] = featureSelection(matrixX, matrixY, seed, fileName)
-        print "Size of Feature Matrix(Seed %i): (%i, %i)" % (seed, featureMatrix.shape[0], featureMatrix.shape[1])
-        # check out print out each accuracy with the number of features next to it.
-        # range number of features from default to 1
-        # train and score on shortened feature set (fit and score function)
-        dictionary = [{"Number of Features":0, "oob_score":0, "Accuracy":0, "Time (secs)":0}]
-        if(numFeatures != -1):
-            i = featureMatrix.shape[1]
-            while i > numFeatures:
-                start1 = timeit.default_timer()
-                clf.fit(featureMatrix, numpy.ravel(matrixY))
-                accuracy = clf.score(featureMatrix, matrixY)
-                oob_score = clf.oob_score_
-                stop1 = timeit.default_timer()
-                dictionary.append({"Number of Features":i, "oob_score":oob_score, "Accuracy":accuracy, "Time (secs)":stop1-start1})
-
-                featureMatrix = numpy.delete(featureMatrix, featureMatrix.shape[1]-1, 1)
-                print "    Getting score %i: %i secs" % (i, stop1-start1)
-                i -= 1
-            writeFileArray(dictionary, "%s_featureScores_seed-%i.csv" % (fileName, seed))
-        stop = timeit.default_timer()
-        print "Lasted %i secs" % (stop-start)
-    return featureMatrix
-
-
-def selectSubsample(matrixX, matrixY, splits):
-    separateX = numpy.vsplit(matrixX, splits)
-    separateY = numpy.vsplit(matrixY, splits)
-    trainXFinal = []
-    trainYFinal = []
-    testXFinal = []
-    testYFinal = []
-    for i in range(len(separateX)):
-        x_train, x_test, y_train, y_test = train_test_split(
-            separateX[i], separateY[i], train_size=trainPercent, random_state=finalSeed)
-        trainXFinal.append(x_train)
-        trainYFinal.append(y_train)
-        testXFinal.append(x_test)
-        testYFinal.append(y_test)
-    return [trainXFinal, trainYFinal, testXFinal, testYFinal]
-
+def convertToDictLabels(values, classes):
+    dictItem = {}
+    for i in range(len(values)):
+        dictItem["Label %i" % classes[i]] = values[i]
+    return dictItem
 
 
 #------------------------MAIN--------------------------
-# does not perform feature selection
-# does scale features
-def processFile(inFileName, outFileName):
-    print "%s -> %s" % (inFileName, outFileName)
-    # read in the csv file 
-    inDict = readFile(inFileName)
 
-    # group the milliseconds into second chunks
-    secDict = groupIntoSeconds(inDict)
-    labelsMatrix = getMatrixOfLabels(secDict)
-    print "Number of seconds observed: " + str(len(secDict))
-    print "Number of voltages in an observation: " + str(len(secDict[len(secDict)-1]['VoltsArray']))
-    writeFileMatrix(labelsMatrix, "%s_labels_%s.dat" % (outFileName, len(secDict)))
-    writeFileMatrix(getMatrixOfSeconds(secDict), "%s_seconds_%s.dat" % (outFileName, len(secDict)))
+for fileInfo in filesList:
+    for typeInfo in typeList:
+        inTrueLabelsName = "%s/%s_labels_%i.dat" % (trueFolder, fileInfo[0], fileInfo[1])
+        inPredLabelsName = "%s/%s_%s_%i_predictedValues.csv" % (predictedFolder, typeInfo[0], fileInfo[0], typeInfo[1])
+        inSecondsName = "%s/%s_seconds_%i.dat" % (secondsFolder, fileInfo[0], fileInfo[1])
+        outname = "%s/%s_%s_%i" % (outFolder, typeInfo[0], fileInfo[0], typeInfo[1])
 
-    # apply the fourier transform on each second chunk
-    fourierFeatureMatrix = applyFourierTransform(secDict)
-    writeFileMatrix(fourierFeatureMatrix, "%s_allFeatures_%s.dat" % (outFileName, len(secDict)))
-    print "Size of Feature Matrix: (%i, %i)" % (fourierFeatureMatrix.shape[0], fourierFeatureMatrix.shape[1])
+        trueLabelsArray = numpy.ravel(readFileMatrix(inTrueLabelsName, fileInfo[1]))
+        predLabelsArray = readFile(inPredLabelsName)
+        secondsArray = numpy.ravel(readFileMatrix(inSecondsName, fileInfo[1]))
 
-    # scale all features to center around mean with variance 1
-    featureMatrix_scaled = preprocessing.scale(fourierFeatureMatrix)
+        [minutesDict, minutes] = groupIntoMinutes(secondsArray)
+        trueLabelsMinArray = groupValues(trueLabelsArray, minutesDict)
+        predLabelsMinArray = groupValues(predLabelsArray, minutesDict)
 
-    print "\n"
-    return [featureMatrix_scaled, labelsMatrix]
+        printDict = []
+        for i in range(len(minutes)):
+            printDict.append({"Minute": minutes[i], "True Labels": trueLabelsMinArray[i], "Predicted Labels": predLabelsMinArray[i]})
+        writeFileArray(printDict, "%s/%s_minuteValues.csv" % (outFolder, fileInfo[0]))
 
 
+        dictScores = []
+        results = []
+        classes = [1,2,3,4,5,6]
+        accuracy = metrics.accuracy_score(trueLabelsMinArray, predLabelsMinArray, normalize=True, sample_weight=None)
+        results.append("   accuracy_score done: %s\n" % (str(accuracy)))
+
+        f1_score = metrics.f1_score(trueLabelsMinArray, predLabelsMinArray, average=None)
+        dictItem = convertToDictLabels(f1_score, classes)
+        dictItem["Score Type"] = "f1_score"
+        dictScores.append(dictItem)
+        results.append("   f1_score done: %s\n" % (str(f1_score)))
+
+        precision_score = metrics.precision_score(trueLabelsMinArray, predLabelsMinArray, average=None)
+        dictItem = convertToDictLabels(precision_score, classes)
+        dictItem["Score Type"] = "precision_score"
+        dictScores.append(dictItem)
+        results.append("   precision_score done: %s\n" % (str(precision_score)))
+
+        recall_score = metrics.recall_score(trueLabelsMinArray, predLabelsMinArray, average=None)
+        dictItem = convertToDictLabels(recall_score, classes)
+        dictItem["Score Type"] = "recall_score"
+        dictScores.append(dictItem)
+
+        writeFileArray(dictScores, "%s_scores.csv" % (outname))
+        results.append("   recall_score done: %s\n" % (str(recall_score)))
+
+        confusion_matrix = metrics.confusion_matrix(trueLabelsMinArray, predLabelsMinArray, labels=[1,2,3,4,5,6])
+        writeFileMatrixCSV(confusion_matrix, "%s_confusionMatrix.csv" % (outname))
+            
 
 
-# iterates over list and processes files
-# performs feature selection after combining all the data in all the files
-def mainAll(filesList):
-    start = timeit.default_timer()
-    featuresFinal = None
-    labelsFinal = None
-    splits = []
-    total = 0
-    outCombinedFile = "./output/"
-    for fileRow in filesList:
-        inFile = "./LabeledData/%s.csv" % fileRow
-        outFile = "./output/%s" % fileRow
-        outCombinedFile += "%s--" % fileRow
-        if(featuresFinal == None):
-            [featuresFinal, labelsFinal] = processFile(inFile, outFile)
-            total += labelsFinal.shape[0]
-        else:
-            [features, labels] = processFile(inFile, outFile)
-            total += labels.shape[0]
-            featuresFinal = numpy.concatenate((featuresFinal, features), axis=0)
-            labelsFinal = numpy.concatenate((labelsFinal, labels), axis=0)
-        splits.append(total)
+        outfile = file("%s_results.txt" % (outname), "w")
 
-    splits.pop()
-    print "Size of Combined Feature Matrix: (%i, %i)" % (featuresFinal.shape[0], featuresFinal.shape[1])
-    print "Size of Combined Labels Matrix: (%i, %i)" % (labelsFinal.shape[0], labelsFinal.shape[1])
+        for i in range (len(results)):
+            outfile.write(results[i])
 
-    # preform feature selection
-    print "Performing Feature Selection..."
-    # used to create different results for seeds and number of features
-#    featureMatrix = featureSelectionTestOptions(featuresFinal, labelsFinal, outCombinedFile)
-    featureMatrix = featureSelectionTrimed(featuresFinal, labelsFinal, outCombinedFile)
-    print "Size of Selected Feature Matrix: (%i, %i)" % (featureMatrix.shape[0], featureMatrix.shape[1])
-    writeFileMatrix(featureMatrix, "%s_selectedFeatures_%s.dat" % (outCombinedFile, featureMatrix.shape[0]))
-
-    # split into individual files
-    print "Write out separate selected"
-    writeOutSplitMatrix(featureMatrix, splits, filesList)
-
-    # split into training and test data
-    print "select subsamples"
-    [trainXList, trainYList, testXList, testYList] = selectSubsample(featureMatrix, labelsFinal, splits)
-    print "write out separate samples"
-    writeOutSamples(trainXList, trainYList, testXList, testYList, filesList)
-    print "write out combined samples"
-    writeOutCombinedSamples(trainXList, trainYList, testXList, testYList, outCombinedFile)
+        outfile.close();
 
 
 
 
-    stop = timeit.default_timer()
-    print "\nRuntime: " + str(stop - start)
-
-
-# ----------------MAIN CALLS ---------------------------------
-
-filesList = [
-    "04_Lab_FD_031114",
-    "12_Lab_C_060514",
-    "13_Lab_Cmac_031114",
-    "17_Lab_Cmac_031214",
-    "21_Lab_Corrizo_051614",
-    "29_Lab_Corrizo_051914",
-    "31_Lab_Troyer_052114",
-    "35_Lab_Val_100714"
-]
-
-#processFile("./LabeledData/%s.csv" % filesList[0], "./output/%s" % filesList[0])
-
-mainAll(filesList)
 
 
 
