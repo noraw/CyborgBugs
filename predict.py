@@ -10,7 +10,7 @@ import os
 import random
 from sklearn import metrics
 from sklearn.semi_supervised import LabelSpreading
-from sklearn.cluster import AgglomerativeClustering
+from sklearn.ensemble import RandomForestClassifier
 from scipy import sparse
 import timeit
 from math import sqrt
@@ -28,14 +28,36 @@ filesList = [
 ]
 
 filesListDebug = [
-    ["04_Lab_FD_031114", 1358, 3],
-    ["12_Lab_C_060514", 4051, 6],
-    ["13_Lab_Cmac_031114", 604, 5],
-    ["17_Lab_Cmac_031214", 499, 5],
-    ["21_Lab_Corrizo_051614", 8662, 6],
-    ["29_Lab_Corrizo_051914", 7382, 6],
-    ["31_Lab_Troyer_052114", 1449, 6],
-    ["35_Lab_Val_100714", 4754, 6]
+    ["04_Lab_FD_031114", 1358],
+    ["12_Lab_C_060514", 4051],
+    ["13_Lab_Cmac_031114", 604],
+    ["17_Lab_Cmac_031214", 499],
+    ["21_Lab_Corrizo_051614", 8662],
+    ["29_Lab_Corrizo_051914", 7382],
+    ["31_Lab_Troyer_052114", 1449],
+    ["35_Lab_Val_100714", 4754]
+]
+
+filesList10 = [
+    ["04_Lab_FD_031114", 1358],
+    ["12_Lab_C_060514", 4051],
+    ["13_Lab_Cmac_031114", 604],
+    ["17_Lab_Cmac_031214", 499],
+    ["21_Lab_Corrizo_051614", 8662],
+    ["29_Lab_Corrizo_051914", 7382],
+    ["31_Lab_Troyer_052114", 1449],
+    ["35_Lab_Val_100714", 4754]
+]
+
+filesList90 = [
+    ["04_Lab_FD_031114", 12213],
+    ["12_Lab_C_060514", 36453],
+    ["13_Lab_Cmac_031114", 5428],
+    ["17_Lab_Cmac_031214", 4489],
+    ["21_Lab_Corrizo_051614", 77957],
+    ["29_Lab_Corrizo_051914", 66429],
+    ["31_Lab_Troyer_052114", 13033],
+    ["35_Lab_Val_100714", 42784]
 ]
 
 n_neighbors = [7, 12]
@@ -47,10 +69,12 @@ startIndex = 0
 
 n_inits = [10, 20]
 folder = "./input"
+folder90 = "./input/split90"
+folder10 = "./input/split10"
 
 # used for debugging
-filesList = filesListDebug
-folder = "./input/debug"
+#filesList = filesListDebug
+#folder = "./input/debug"
 
 
 #---------------------READ/WRITE FUNCTIONS----------------------------------------
@@ -117,14 +141,14 @@ def getSizeFromFileName(myfile):
     return parts2[0]
 
 
-def createTrainingData(folder, fileList):
+def createTrainingData(folderIn, fileList):
     for i in range(len(fileList)):
         fileInfo = fileList[i]
-        inX = "%s/%s_selectedFeatures_%i.dat" % (folder, fileInfo[0], fileInfo[1])
-        inY = "%s/%s_labels_%i.dat" % (folder, fileInfo[0], fileInfo[1])
+        inX = "%s/%s_selectedFeatures_%i.dat" % (folderIn, fileInfo[0], fileInfo[1])
+        inY = "%s/%s_labels_%i.dat" % (folderIn, fileInfo[0], fileInfo[1])
 # used for debugging
-        inX = "%s/%s_selectedFeatures_test_%i.dat" % (folder, fileInfo[0], fileInfo[1])
-        inY = "%s/%s_labels_test_%i.dat" % (folder, fileInfo[0], fileInfo[1])
+#        inX = "%s/%s_selectedFeatures_test_%i.dat" % (folderIn, fileInfo[0], fileInfo[1])
+#        inY = "%s/%s_labels_test_%i.dat" % (folderIn, fileInfo[0], fileInfo[1])
 
         X  = readFileMatrix(inX, fileInfo[1])
         Y  = readFileMatrix(inY, fileInfo[1])
@@ -144,68 +168,6 @@ def convertToDictLabels(values, classes):
     for i in range(len(values)):
         dictItem["Label %i" % classes[i]] = values[i]
     return dictItem
-
-def convertClusterLabels(labels, cluster_labels):
-    newLabels = []
-    for i in range(len(labels)):
-        newLabels.append(cluster_labels[labels[i]])
-    return newLabels
-
-def findClusterLabels(X, y, labels):
-    countOfLabels = {0: {1:0, 2:0, 3:0, 4:0, 5:0, 6:0},
-                    1: {1:0, 2:0, 3:0, 4:0, 5:0, 6:0},
-                    2: {1:0, 2:0, 3:0, 4:0, 5:0, 6:0},
-                    3: {1:0, 2:0, 3:0, 4:0, 5:0, 6:0},
-                    4: {1:0, 2:0, 3:0, 4:0, 5:0, 6:0},
-                    5: {1:0, 2:0, 3:0, 4:0, 5:0, 6:0}}
-    percentOfLabels = {0: {1:0, 2:0, 3:0, 4:0, 5:0, 6:0},
-                    1: {1:0, 2:0, 3:0, 4:0, 5:0, 6:0},
-                    2: {1:0, 2:0, 3:0, 4:0, 5:0, 6:0},
-                    3: {1:0, 2:0, 3:0, 4:0, 5:0, 6:0},
-                    4: {1:0, 2:0, 3:0, 4:0, 5:0, 6:0},
-                    5: {1:0, 2:0, 3:0, 4:0, 5:0, 6:0}}
-    actualLabelCounts = {1:0, 2:0, 3:0, 4:0, 5:0, 6:0}
-
-    print labels[1195]
-    print labels[1054]
-    print labels[248]
-
-    for i in range(len(labels)):
-        count = countOfLabels[labels[i]][y[i]]
-        countOfLabels[labels[i]][y[i]] = count + 1
-        actualLabelCounts[y[i]] = actualLabelCounts[y[i]] + 1
-
-    for i in range(6):
-        print "%i: %s" % (i, str(countOfLabels[i]))
-    print actualLabelCounts
-
-    for i in range(6):
-        total = 0
-        for j in range(1,7):
-            total += countOfLabels[i][j]
-        for j in range(1,7):
-            if(total !=0):
-                percent = float(countOfLabels[i][j])/float(total)
-                percentOfLabels[i][j] = "%.2f" % (percent)
-    
-
-    return []
-
-def getKMeansClusterInitArray(X, y, clusterNum):
-    labelIndices = {1:[], 2:[], 3:[], 4:[], 5:[], 6:[]}
-    for i in range(len(y)):
-        labelIndices[y[i]].append(i)
-
-    indices = []
-    for i in range(1, 7):
-        if(len(labelIndices[i]) > 0):
-            indices.append(random.sample(labelIndices[i], 1)[0])
-    print indices
-
-    clusterCenters = np.ndarray(shape=(len(indices), X.shape[1]), dtype=float, order='F')
-    for i in range(len(indices)):
-        clusterCenters.put(i, X[indices[i]])
-    return clusterCenters
 
 
 def predict(clf, X, y, X_test, y_test, outname):
@@ -266,18 +228,6 @@ def predict(clf, X, y, X_test, y_test, outname):
 
     return results
 
-def predictKmeans(clf, X, y, X_test, y_test, outname):
-    results = []
-    time0 = timeit.default_timer()
-    results.append("\nResults:\n")
-
-    clf.fit_predict(X)
-    time1 = timeit.default_timer()
-    results.append("   fit done (%i secs)\n" % (time1 - time0))
-
-    cluster_labels = findClusterLabels(X, y, clf.labels_)
-#    y_pred = convertClusterLabels(clf.predict(X_test), cluster_labels)
-    return results
 
 
 def calculateGridSpotLabelSpreading(index, args, neighbor, alpha, max_iter, tol):
@@ -292,9 +242,9 @@ def calculateGridSpotLabelSpreading(index, args, neighbor, alpha, max_iter, tol)
         inXtest = "%s/%s_selectedFeatures_%i.dat" % (folder, fileInfo[0], fileInfo[1])
         inYtest = "%s/%s_labels_%i.dat" % (folder, fileInfo[0], fileInfo[1])
 # used for debugging
-        inXtest = "%s/%s_selectedFeatures_test_%i.dat" % (folder, fileInfo[0], fileInfo[1])
-        inYtest = "%s/%s_labels_test_%i.dat" % (folder, fileInfo[0], fileInfo[1])
-        outname += "test_"
+#        inXtest = "%s/%s_selectedFeatures_test_%i.dat" % (folder, fileInfo[0], fileInfo[1])
+#        inYtest = "%s/%s_labels_test_%i.dat" % (folder, fileInfo[0], fileInfo[1])
+#        outname += "test_"
 
         Xtest  = readFileMatrix(inXtest, fileInfo[1])
         Ytest  = readFileMatrix(inYtest, fileInfo[1])
@@ -354,42 +304,56 @@ def calculateGridSpotLabelSpreading(index, args, neighbor, alpha, max_iter, tol)
     print "Done predicting: %i secs" % (stopAll - startAll)
 
 
-def calculateGridSpotKMeans(index, args, n_init, max_iter, tol):
+def calculateGridSpotRandomForest(args, include10):
     # want to try it out with each file selected separately as the test data
     # all the other files are combined to be the training data
     startAll = timeit.default_timer()
-    print "\nKMeans(%i): %i, %i, %f" % (index, n_init, max_iter, tol)
+    print "\nRandomForest"
 
-    for fileInfo in filesList:
+    for i in range(len(filesList90)):
+        if(include10):
+            fileInfo = filesList90[i]
+            folderIn = folder90
+            inXtest = "%s/%s_selectedFeatures_train_%i.dat" % (folderIn, fileInfo[0], fileInfo[1])
+            inYtest = "%s/%s_labels_train_%i.dat" % (folderIn, fileInfo[0], fileInfo[1])
+        else:
+            fileInfo = filesList[i]
+            folderIn = folder
+            inXtest = "%s/%s_selectedFeatures_%i.dat" % (folderIn, fileInfo[0], fileInfo[1])
+            inYtest = "%s/%s_labels_%i.dat" % (folderIn, fileInfo[0], fileInfo[1])
+
+        fileInfo10 = filesList10[i]
         outLines = []
-        outname = "./output/PredictedKMeans/" # assigned later
-        inXtest = "%s/%s_selectedFeatures_%i.dat" % (folder, fileInfo[0], fileInfo[1])
-        inYtest = "%s/%s_labels_%i.dat" % (folder, fileInfo[0], fileInfo[1])
-# used for debugging
-        inXtest = "%s/%s_selectedFeatures_test_%i.dat" % (folder, fileInfo[0], fileInfo[1])
-        inYtest = "%s/%s_labels_test_%i.dat" % (folder, fileInfo[0], fileInfo[1])
-        outname += "test_"
+        outname = "./output/PredictedRandomForest/" # assigned later
+        if(include10):
+            outname += "include10_"
+            inXtrain = "%s/%s_selectedFeatures_test_%i.dat" % (folder10, fileInfo10[0], fileInfo10[1])
+            inYtrain = "%s/%s_labels_test_%i.dat" % (folder10, fileInfo10[0], fileInfo10[1])
+        
 
         Xtest  = readFileMatrix(inXtest, fileInfo[1])
         Ytest  = readFileMatrix(inYtest, fileInfo[1])
 
         trainList = list(filesList)
-        trainList.remove(fileInfo)
+        del trainList[i]
         [Xtrain, Ytrain] = createTrainingData(folder, trainList)
 
-        print "X train shape %s" % str(Xtrain.shape)
-        print "X test shape %s" % str(Xtest.shape)
-        print "Y train shape %s" % str(Ytrain.shape)
-        print "Y test shape %s" % str(Ytest.shape)
+        if(include10):
+            Xtrain10  = readFileMatrix(inXtrain, fileInfo10[1])
+            Ytrain10  = readFileMatrix(inYtrain, fileInfo10[1])
+            Xtrain = np.concatenate((Xtrain, Xtrain10), axis=0)
+            Ytrain = np.concatenate((Ytrain, Ytrain10), axis=0)
+
+#        print "X train shape %s" % str(Xtrain.shape)
+#        print "X test shape %s" % str(Xtest.shape)
+#        print "Y train shape %s" % str(Ytrain.shape)
+#        print "Y test shape %s" % str(Ytest.shape)
 
         outLines.append("Test File:\n")
         outLines.append("inXtest: %s\n" % inXtest)
         outLines.append("inYtest: %s\n" % inYtest)
 
         outLines.append("\nVariables:\n")
-        outLines.append("n_init: %i\n" % n_init)
-        outLines.append("max_iter: %i\n" % max_iter)
-        outLines.append("tol: %f\n" % tol)
 
         outLines.append("\nRead in Files Done\n")
         outLines.append("X train shape %s\n" % str(Xtrain.shape))
@@ -402,17 +366,16 @@ def calculateGridSpotKMeans(index, args, n_init, max_iter, tol):
 
 
         # CLASSIFY!
-        outname += "KMeans"
-        init = getKMeansClusterInitArray(Xtest, np.ravel(Ytest), fileInfo[2])
-        clf = AgglomerativeClustering(n_clusters=fileInfo[2], affinity='euclidean', connectivity=None, n_components=None, compute_full_tree='auto', linkage='ward')
-        #clf = KMeans(n_clusters=fileInfo[2], init=init, n_init=10, max_iter=300, tol=0.0001, precompute_distances='auto', verbose=0, random_state=24, copy_x=True, n_jobs=1)
+        outname += "RandomForest"
+        clf = RandomForestClassifier(n_estimators=10, criterion='gini', max_depth=None, min_samples_split=2, min_samples_leaf=1, min_weight_fraction_leaf=0.0, max_features='auto', max_leaf_nodes=None, bootstrap=True, oob_score=True, n_jobs=1, random_state=None, verbose=0, warm_start=False, class_weight=None)
 
         start = timeit.default_timer()
-        results = predictKmeans(clf, Xtest, np.ravel(Ytest), Xtest, np.ravel(Ytest), "%s_%s_%i" % (outname, fileInfo[0], index))
+        results = predict(clf, Xtrain, np.ravel(Ytrain), Xtest, np.ravel(Ytest), "%s_%s" % (outname, fileInfo[0]))
         stop = timeit.default_timer()
         results.append("   total time: %i secs\n" % (stop - start))
+        results.append("   oob_score: %f\n" % (clf.oob_score_))
 
-        outfile = file("%s_%s_%i_results.txt" % (outname, fileInfo[0], index), "w")
+        outfile = file("%s_%s_results.txt" % (outname, fileInfo[0]), "w")
 
         for i in range (len(outLines)):
             outfile.write(outLines[i])
@@ -421,7 +384,6 @@ def calculateGridSpotKMeans(index, args, n_init, max_iter, tol):
             outfile.write(results[i])
 
         outfile.close();
-        break
 
     stopAll = timeit.default_timer()
     print "Done predicting: %i secs" % (stopAll - startAll)
@@ -431,7 +393,7 @@ def calculateGridSpotKMeans(index, args, n_init, max_iter, tol):
 # argument parsing.
 parser = argparse.ArgumentParser(description='Predict CyborgBugs.')
 parser.add_argument("-L", "--LabelSpreading", action="store_true", help="run LabelSpreading")
-parser.add_argument("-K", "--KMeans", action="store_true", help="run KMeans")
+parser.add_argument("-F", "--RandomForest", action="store_true", help="run Forest")
 
 random.seed(24)
 args = parser.parse_args()
@@ -447,16 +409,9 @@ if args.LabelSpreading:
                         calculateGridSpotLabelSpreading(index, args, neighbor, alpha, max_iter, tol)
                     index +=1
 
-if args.KMeans:
-    for n_init in n_inits:
-        for max_iter in max_iters:
-            for tol in tols:
-                if(index >= startIndex):
-                    calculateGridSpotKMeans(index, args, n_init, max_iter, tol)
-                index +=1
-                break
-            break
-        break
+if args.RandomForest:
+    calculateGridSpotRandomForest(args, False)
+    calculateGridSpotRandomForest(args, True)
 
 
 print "------------------------ALL DONE!!!!---------------------------------"
