@@ -105,7 +105,7 @@ def groupIntoMinutes(secondsArray):
     return [minDict, minutes]
 
 
-def groupValues(labels, minutesDict):
+def groupValues(labels, minutesDict, doTransitions):
     newLabels = []
 
     for row in minutesDict:
@@ -115,7 +115,10 @@ def groupValues(labels, minutesDict):
             currentCount = labelCount[labelIndex]
             labelCount[labelIndex] = currentCount + 1
         maxCount = max(labelCount)
-        newLabels.append(labelCount.index(maxCount) + 1)
+        if(doTransitions && maxCount < 50):
+            newLabels.append(7)
+        else:
+            newLabels.append(labelCount.index(maxCount) + 1)
 
     return newLabels
 
@@ -127,7 +130,9 @@ def convertToDictLabels(values, classes):
     return dictItem
 
 
+
 #------------------------MAIN--------------------------
+doTransitions = True
 
 for fileInfo in filesList:
     for typeInfo in typeList:
@@ -141,8 +146,8 @@ for fileInfo in filesList:
         secondsArray = numpy.ravel(readFileMatrix(inSecondsName, fileInfo[1]))
 
         [minutesDict, minutes] = groupIntoMinutes(secondsArray)
-        trueLabelsMinArray = groupValues(trueLabelsArray, minutesDict)
-        predLabelsMinArray = groupValues(predLabelsArray, minutesDict)
+        trueLabelsMinArray = groupValues(trueLabelsArray, minutesDict, doTransitions)
+        predLabelsMinArray = groupValues(predLabelsArray, minutesDict, doTransitions)
 
         printDict = []
         for i in range(len(minutes)):
@@ -178,8 +183,6 @@ for fileInfo in filesList:
 
         confusion_matrix = metrics.confusion_matrix(trueLabelsMinArray, predLabelsMinArray, labels=[1,2,3,4,5,6])
         writeFileMatrixCSV(confusion_matrix, "%s_confusionMatrix.csv" % (outname))
-            
-
 
         outfile = file("%s_results.txt" % (outname), "w")
 
