@@ -72,16 +72,27 @@ n_inits = [10, 20]
 
 covar_types = ['spherical', 'diag', 'tied', 'full']
 
+infolders = [
+    "12ImportantFeatures",
+    "12LargestMag",
+    "12LargestFreq",
+    "12LargestMagFreq"
+]
+
 folder = "./input"
-folder90 = "./input/split90"
-folder10 = "./input/split10"
+folder90 = "split90"
+folder10 = "split10"
+debug = "debug"
 
 # used for debugging
 #filesList = filesListDebug
-#folder = "./input/debug"
 
 
 #---------------------READ/WRITE FUNCTIONS----------------------------------------
+def ensure_dir(f):
+    d = os.path.dirname(f)
+    if not os.path.exists(d):
+        os.makedirs(d)
 
 # read a dat file back into python. 
 def readFileMatrix(myfile, size):
@@ -90,10 +101,12 @@ def readFileMatrix(myfile, size):
     return array
 
 def writeFileMatrix(matrix, fileName):
+    ensure_dir(fileName)
     matrix.tofile(fileName)
 
 def writeFileArray(dictionary, fileName):
     # output feature importance for graphs
+    ensure_dir(fileName)
     outfile = file(fileName, "w")
     keys = []
     header = ""
@@ -112,6 +125,7 @@ def writeFileArray(dictionary, fileName):
     outfile.close();
 
 def writeFileList(array, fileName):
+    ensure_dir(fileName)
     # output feature importance for graphs
     outfile = file(fileName, "w")
     outfile.write('"ID","Value"\n');
@@ -123,6 +137,7 @@ def writeFileList(array, fileName):
     outfile.close();
 
 def writeFileMatrixCSV(matrix, fileName):
+    ensure_dir(fileName)
     outfile = file(fileName, "w")
     outfile.write('"Confusion Matrix","1","2","3","4","5","6"\n');
     rows = matrix.shape[0]
@@ -145,14 +160,14 @@ def getSizeFromFileName(myfile):
     return parts2[0]
 
 
-def createTrainingData(folderIn, fileList):
+def createTrainingData(folderIn, fileList, infolder):
     for i in range(len(fileList)):
         fileInfo = fileList[i]
-        inX = "%s/%s_selectedFeatures_%i.dat" % (folderIn, fileInfo[0], fileInfo[1])
-        inY = "%s/%s_labels_%i.dat" % (folderIn, fileInfo[0], fileInfo[1])
+        inX = "%s/%s/%s_selectedFeatures_%i.dat" % (folder, infolder, fileInfo[0], fileInfo[1])
+        inY = "%s/%s_labels_%i.dat" % (folder, fileInfo[0], fileInfo[1])
 # used for debugging
-#        inX = "%s/%s_selectedFeatures_test_%i.dat" % (folderIn, fileInfo[0], fileInfo[1])
-#        inY = "%s/%s_labels_test_%i.dat" % (folderIn, fileInfo[0], fileInfo[1])
+#        inX = "%s/%s/%s/%s_selectedFeatures_10_%i.dat" % (folder, infolder, debug, fileInfo[0], fileInfo[1])
+#        inY = "%s/%s/%s/%s_labels_10_%i.dat" % (folder, infolder, debug, fileInfo[0], fileInfo[1])
 
         X  = readFileMatrix(inX, fileInfo[1])
         Y  = readFileMatrix(inY, fileInfo[1])
@@ -169,7 +184,10 @@ def createTrainingData(folderIn, fileList):
 
 def convertToDictLabels(values, classes):
     dictItem = {}
-    for i in range(len(values)):
+#    print "\nconvertToDictLabels"
+#    print values
+#    print classes
+    for i in range(len(classes)):
         dictItem["Label %i" % classes[i]] = values[i]
     return dictItem
 
@@ -184,12 +202,15 @@ def predict(clf, X, y, X_test, y_test, outname):
     results.append("   fit done (%i secs)\n" % (time1 - time0))
 
     y_pred = clf.predict(X_test)
+    if(outname.find("Gaussian") != -1):
+        y_pred = [x+1 for x in y_pred]
+
     time2 = timeit.default_timer()
     writeFileList(y_pred, "%s_predictedValues.csv" % (outname))
     results.append("   predict done (%i secs)\n" % (time2 - time1))
 
     y_predictedProbMatrix = clf.predict_proba(X_test)
-    classes = clf.classes_
+    classes = [1, 2, 3, 4, 5, 6]
     time3 = timeit.default_timer()
     dictProb = []
     for i in range(len(y_predictedProbMatrix)):
@@ -199,30 +220,27 @@ def predict(clf, X, y, X_test, y_test, outname):
     writeFileArray(dictProb, "%s_predictedProb.csv" % (outname))
     results.append("   predict probabilities done (%i secs)\n" % (time3 - time2))
 
-    score = clf.score(X_test, y_test)
+    accuracy = metrics.accuracy_score(y_test, y_pred, normalize=True, sample_weight=None)
     time4 = timeit.default_timer()
-    results.append("   score done (%i secs): %f\n" % (time4 - time3, score))
+    results.append("   accuracy_score done (%i secs): %f\n" % (time4 - time3, accuracy))
 
     dictScores = []
 
-    accuracy = metrics.accuracy_score(y_test, y_pred, normalize=True, sample_weight=None)
-    results.append("   accuracy_score done: %s\n" % (str(accuracy)))
-
-    f1_score = metrics.f1_score(y_test, y_pred, average=None)
+    f1_score = metrics.f1_score(y_test, y_pred, average=None, labels=classes)
     dictItem = convertToDictLabels(f1_score, classes)
     dictItem["Score Type"] = "f1_score"
     dictScores.append(dictItem)
     time5 = timeit.default_timer()
     results.append("   f1_score done (%i secs): %s\n" % (time5 - time4, str(f1_score)))
 
-    precision_score = metrics.precision_score(y_test, y_pred, average=None)
+    precision_score = metrics.precision_score(y_test, y_pred, average=None, labels=classes)
     dictItem = convertToDictLabels(precision_score, classes)
     dictItem["Score Type"] = "precision_score"
     dictScores.append(dictItem)
     time6 = timeit.default_timer()
     results.append("   precision_score done (%i secs): %s\n" % (time6 - time5, str(precision_score)))
 
-    recall_score = metrics.recall_score(y_test, y_pred, average=None)
+    recall_score = metrics.recall_score(y_test, y_pred, average=None, labels=classes)
     dictItem = convertToDictLabels(recall_score, classes)
     dictItem["Score Type"] = "recall_score"
     dictScores.append(dictItem)
@@ -230,27 +248,27 @@ def predict(clf, X, y, X_test, y_test, outname):
     writeFileArray(dictScores, "%s_scores.csv" % (outname))
     results.append("   recall_score done (%i secs): %s\n" % (time7 - time6, str(recall_score)))
 
-    confusion_matrix = metrics.confusion_matrix(y_test, y_pred, labels=[1,2,3,4,5,6])
+    confusion_matrix = metrics.confusion_matrix(y_test, y_pred, labels=classes)
     writeFileMatrixCSV(confusion_matrix, "%s_confusionMatrix.csv" % (outname))
 
     return results
 
 
 
-def calculateGridSpotLabelSpreading(index, args, neighbor, alpha, max_iter, tol):
+def calculateGridSpotLabelSpreading(index, args, neighbor, alpha, max_iter, tol, infolder):
     # want to try it out with each file selected separately as the test data
     # all the other files are combined to be the training data
     startAll = timeit.default_timer()
-    print "\nLabelSpreading(%i): %i, %f, %i, %f" % (index, neighbor, alpha, max_iter, tol)
+    print "\nLabelSpreading(%i) - %s: %i, %f, %i, %f" % (index, infolder, neighbor, alpha, max_iter, tol)
 
     for fileInfo in filesList:
         outLines = []
-        outname = "./output/PredictedLabelSpreading/" # assigned later
-        inXtest = "%s/%s_selectedFeatures_%i.dat" % (folder, fileInfo[0], fileInfo[1])
+        outname = "./output/PredictedLabelSpreading/%s/" % infolder # assigned later
+        inXtest = "%s/%s/%s_selectedFeatures_%i.dat" % (folder, infolder, fileInfo[0], fileInfo[1])
         inYtest = "%s/%s_labels_%i.dat" % (folder, fileInfo[0], fileInfo[1])
 # used for debugging
-#        inXtest = "%s/%s_selectedFeatures_test_%i.dat" % (folder, fileInfo[0], fileInfo[1])
-#        inYtest = "%s/%s_labels_test_%i.dat" % (folder, fileInfo[0], fileInfo[1])
+#        inXtest = "%s/%s/%s/%s_selectedFeatures_10_%i.dat" % (folder, infolder, debug, fileInfo[0], fileInfo[1])
+#        inYtest = "%s/%s/%s/%s_labels_10_%i.dat" % (folder, infolder, debug, fileInfo[0], fileInfo[1])
 #        outname += "test_"
 
         Xtest  = readFileMatrix(inXtest, fileInfo[1])
@@ -259,7 +277,7 @@ def calculateGridSpotLabelSpreading(index, args, neighbor, alpha, max_iter, tol)
 
         trainList = list(filesList)
         trainList.remove(fileInfo)
-        [Xtrain, Ytrain] = createTrainingData(folder, trainList)
+        [Xtrain, Ytrain] = createTrainingData(folder, trainList, infolder)
         Xtrain = np.concatenate((Xtrain, Xtest), axis=0)
         Ytrain = np.concatenate((Ytrain, YOnes), axis=0)
 
@@ -311,31 +329,29 @@ def calculateGridSpotLabelSpreading(index, args, neighbor, alpha, max_iter, tol)
     print "Done predicting: %i secs" % (stopAll - startAll)
 
 
-def calculateGridSpotRandomForest(args, include10):
+def calculateGridSpotRandomForest(args, include10, infolder):
     # want to try it out with each file selected separately as the test data
     # all the other files are combined to be the training data
     startAll = timeit.default_timer()
-    print "\nRandomForest"
+    print "\nRandomForest(%s) - %s" % (include10, infolder)
 
     for i in range(len(filesList90)):
         if(include10):
             fileInfo = filesList90[i]
-            folderIn = folder90
-            inXtest = "%s/%s_selectedFeatures_train_%i.dat" % (folderIn, fileInfo[0], fileInfo[1])
-            inYtest = "%s/%s_labels_train_%i.dat" % (folderIn, fileInfo[0], fileInfo[1])
+            inXtest = "%s/%s/%s/%s_selectedFeatures_90_%i.dat" % (folder, infolder, folder90, fileInfo[0], fileInfo[1])
+            inYtest = "%s/%s/%s/%s_labels_90_%i.dat" % (folder, infolder, folder90, fileInfo[0], fileInfo[1])
         else:
             fileInfo = filesList[i]
-            folderIn = folder
-            inXtest = "%s/%s_selectedFeatures_%i.dat" % (folderIn, fileInfo[0], fileInfo[1])
-            inYtest = "%s/%s_labels_%i.dat" % (folderIn, fileInfo[0], fileInfo[1])
+            inXtest = "%s/%s/%s_selectedFeatures_%i.dat" % (folder, infolder, fileInfo[0], fileInfo[1])
+            inYtest = "%s/%s_labels_%i.dat" % (folder, fileInfo[0], fileInfo[1])
 
         fileInfo10 = filesList10[i]
         outLines = []
-        outname = "./output/PredictedRandomForest/" # assigned later
+        outname = "./output/PredictedRandomForest/%s/" % infolder # assigned later
         if(include10):
             outname += "include10_"
-            inXtrain = "%s/%s_selectedFeatures_test_%i.dat" % (folder10, fileInfo10[0], fileInfo10[1])
-            inYtrain = "%s/%s_labels_test_%i.dat" % (folder10, fileInfo10[0], fileInfo10[1])
+            inXtrain = "%s/%s/%s/%s_selectedFeatures_10_%i.dat" % (folder, infolder, folder10, fileInfo10[0], fileInfo10[1])
+            inYtrain = "%s/%s/%s/%s_labels_10_%i.dat" % (folder, infolder, folder10, fileInfo10[0], fileInfo10[1])
         
 
         Xtest  = readFileMatrix(inXtest, fileInfo[1])
@@ -343,7 +359,7 @@ def calculateGridSpotRandomForest(args, include10):
 
         trainList = list(filesList)
         del trainList[i]
-        [Xtrain, Ytrain] = createTrainingData(folder, trainList)
+        [Xtrain, Ytrain] = createTrainingData(folder, trainList, infolder)
 
         if(include10):
             Xtrain10  = readFileMatrix(inXtrain, fileInfo10[1])
@@ -396,20 +412,20 @@ def calculateGridSpotRandomForest(args, include10):
     print "Done predicting: %i secs" % (stopAll - startAll)
 
 
-def calculateGridSpotGaussian(index, args, covar_type):
+def calculateGridSpotGaussian(index, args, covar_type, infolder):
     # want to try it out with each file selected separately as the test data
     # all the other files are combined to be the training data
     startAll = timeit.default_timer()
-    print "\nGaussian(%i): %s" % (index, covar_type)
+    print "\nGaussian(%i) - %s: %s" % (index, infolder, covar_type)
 
     for fileInfo in filesList:
         outLines = []
-        outname = "./output/PredictedGaussian/" # assigned later
-        inXtest = "%s/%s_selectedFeatures_%i.dat" % (folder, fileInfo[0], fileInfo[1])
+        outname = "./output/PredictedGaussian/%s/" % infolder # assigned later
+        inXtest = "%s/%s/%s_selectedFeatures_%i.dat" % (folder, infolder, fileInfo[0], fileInfo[1])
         inYtest = "%s/%s_labels_%i.dat" % (folder, fileInfo[0], fileInfo[1])
 # used for debugging
-#        inXtest = "%s/%s_selectedFeatures_test_%i.dat" % (folder, fileInfo[0], fileInfo[1])
-#        inYtest = "%s/%s_labels_test_%i.dat" % (folder, fileInfo[0], fileInfo[1])
+#        inXtest = "%s/%s/%s/%s_selectedFeatures_10_%i.dat" % (folder, infolder, debug, fileInfo[0], fileInfo[1])
+#        inYtest = "%s/%s/%s/%s_labels_10_%i.dat" % (folder, infolder, debug, fileInfo[0], fileInfo[1])
 #        outname += "test_"
 
         Xtest  = readFileMatrix(inXtest, fileInfo[1])
@@ -417,7 +433,7 @@ def calculateGridSpotGaussian(index, args, covar_type):
 
         trainList = list(filesList)
         trainList.remove(fileInfo)
-        [Xtrain, Ytrain] = createTrainingData(folder, trainList)
+        [Xtrain, Ytrain] = createTrainingData(folder, trainList, infolder)
 
 #        print "X train shape %s" % str(Xtrain.shape)
 #        print "X test shape %s" % str(Xtest.shape)
@@ -491,22 +507,25 @@ print args;
 
 index = 1
 if args.LabelSpreading:
-    for neighbor in n_neighbors:
-        for alpha in alphas:
-            for max_iter in max_iters:
-                for tol in tols:
-                    if(index >= startIndex):
-                        calculateGridSpotLabelSpreading(index, args, neighbor, alpha, max_iter, tol)
-                    index +=1
+    for infolder in infolders:
+        for neighbor in n_neighbors:
+            for alpha in alphas:
+                for max_iter in max_iters:
+                    for tol in tols:
+                        if(index >= startIndex):
+                            calculateGridSpotLabelSpreading(index, args, neighbor, alpha, max_iter, tol, infolder)
+                        index +=1
 
 if args.RandomForest:
-    calculateGridSpotRandomForest(args, False)
-    calculateGridSpotRandomForest(args, True)
+    for infolder in infolders:
+        calculateGridSpotRandomForest(args, False, infolder)
+        calculateGridSpotRandomForest(args, True, infolder)
 
 
 if args.GaussianMixture:
-    for i in range(len(covar_types)):
-        calculateGridSpotGaussian(i, args, covar_types[i])
+    for infolder in infolders:
+        for i in range(len(covar_types)):
+            calculateGridSpotGaussian(i, args, covar_types[i], infolder)
 
 
 

@@ -39,16 +39,24 @@ trainPercent = .9
 
 
 #-------------Input/Output functions----------------------------------------
+def ensure_dir(f):
+    d = os.path.dirname(f)
+    if not os.path.exists(d):
+        os.makedirs(d)
+
+
 def readFile(fileName):
     csvfile = open(fileName)
     fileDict = csv.DictReader(csvfile)
     return fileDict
 
 def writeFileMatrix(matrix, fileName):
+    ensure_dir(fileName)
     matrix.tofile(fileName)
 
 def writeFileArray(dictionary, fileName):
     # output feature importance for graphs
+    ensure_dir(fileName)
     outfile = file(fileName, "w")
     keys = []
     header = ""
@@ -68,6 +76,9 @@ def writeFileArray(dictionary, fileName):
 
 
 def writeOutSamples(trainX, trainY, testX, testY, fileNames, outfolder):
+    ensure_dir("%s/split90" % outfolder)
+    ensure_dir("%s/split10" % outfolder)
+    ensure_dir("%s/debug" % outfolder)
     for i in range(len(fileNames)):
         writeFileMatrix(trainX[i], "%s/split90/%s_selectedFeatures_90_%i.dat" % (outfolder, fileNames[i], trainX[i].shape[0]))
         writeFileMatrix(trainY[i], "%s/split90/%s_labels_90_%i.dat" % (outfolder, fileNames[i], trainY[i].shape[0]))
@@ -78,6 +89,7 @@ def writeOutSamples(trainX, trainY, testX, testY, fileNames, outfolder):
 
 
 def writeOutCombinedSamples(trainX, trainY, testX, testY, fileName):
+    ensure_dir(fileName)
     trainXCombo = trainX[0]
     trainYCombo = trainY[0]
     testXCombo = testX[0]
@@ -96,6 +108,7 @@ def writeOutCombinedSamples(trainX, trainY, testX, testY, fileName):
     writeFileMatrix(testYCombo, "%s_labels_test_%i.dat" % (fileName, testYCombo.shape[0]))
 
 def writeOutSplitMatrix(featureMatrix, splits, fileNames, outfolder):
+    ensure_dir(outfolder)
     separateMatrices = numpy.vsplit(featureMatrix, splits)
     for i in range(len(fileNames)):
         writeFileMatrix(separateMatrices[i], "%s/%s_selectedFeatures_%i.dat" % (outfolder, fileNames[i], separateMatrices[i].shape[0]))
