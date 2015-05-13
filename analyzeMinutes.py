@@ -107,7 +107,7 @@ def groupIntoMinutes(secondsArray):
     return [minDict, minutes]
 
 
-def groupValues(labels, minutesDict):
+def groupValues(labels, minutesDict, doTransitions):
     newLabels = []
 
     for row in minutesDict:
@@ -117,7 +117,10 @@ def groupValues(labels, minutesDict):
             currentCount = labelCount[labelIndex]
             labelCount[labelIndex] = currentCount + 1
         maxCount = max(labelCount)
-        newLabels.append(labelCount.index(maxCount) + 1)
+        if(doTransitions && maxCount < 50):
+            newLabels.append(7)
+        else:
+            newLabels.append(labelCount.index(maxCount) + 1)
 
     return newLabels
 
@@ -129,7 +132,9 @@ def convertToDictLabels(values, classes):
     return dictItem
 
 
+
 #------------------------MAIN--------------------------
+doTransitions = True
 
 for fileInfo in filesList:
     for typeInfo in typeList:
@@ -149,13 +154,17 @@ for fileInfo in filesList:
         print len(secondsArray)
 
         [minutesDict, minutes] = groupIntoMinutes(secondsArray)
-        trueLabelsMinArray = groupValues(trueLabelsArray, minutesDict)
-        predLabelsMinArray = groupValues(predLabelsArray, minutesDict)
+        trueLabelsMinArray = groupValues(trueLabelsArray, minutesDict, doTransitions)
+        predLabelsMinArray = groupValues(predLabelsArray, minutesDict, doTransitions)
 
         printDict = []
         for i in range(len(minutes)):
             printDict.append({"Minute": minutes[i], "True Labels": trueLabelsMinArray[i], "Predicted Labels": predLabelsMinArray[i]})
-        writeFileArray(printDict, "%s/%s_%s_minuteValues.csv" % (outFolder, typeInfo[0], fileInfo[0]))
+
+        if(doTransitions):
+            writeFileArray(printDict, "%s/%s_minuteValues_transitions.csv" % (outFolder, fileInfo[0]))
+        else:
+            writeFileArray(printDict, "%s/%s_minuteValues.csv" % (outFolder, fileInfo[0]))
 
 
         dictScores = []
@@ -181,15 +190,20 @@ for fileInfo in filesList:
         dictItem["Score Type"] = "recall_score"
         dictScores.append(dictItem)
 
-        writeFileArray(dictScores, "%s_scores.csv" % (outname))
+        if(doTransitions):
+            writeFileArray(dictScores, "%s_scores.csv" % (outname))
+        else:
+            writeFileArray(dictScores, "%s_scores_transitions.csv" % (outname))
         results.append("   recall_score done: %s\n" % (str(recall_score)))
 
         confusion_matrix = metrics.confusion_matrix(trueLabelsMinArray, predLabelsMinArray, labels=[1,2,3,4,5,6])
-        writeFileMatrixCSV(confusion_matrix, "%s_confusionMatrix.csv" % (outname))
-            
+        if(doTransitions):
+            writeFileMatrixCSV(confusion_matrix, "%s_confusionMatrix_transitions.csv" % (outname))
+            outfile = file("%s_results_transitions.txt" % (outname), "w")
+        else:
+            writeFileMatrixCSV(confusion_matrix, "%s_confusionMatrix.csv" % (outname))
+            outfile = file("%s_results.txt" % (outname), "w")
 
-
-        outfile = file("%s_results.txt" % (outname), "w")
 
         for i in range (len(results)):
             outfile.write(results[i])
