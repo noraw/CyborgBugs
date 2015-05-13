@@ -11,6 +11,7 @@ import random
 from sklearn import metrics
 from sklearn.semi_supervised import LabelSpreading
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.mixture import GMM
 from scipy import sparse
 import timeit
 from math import sqrt
@@ -60,14 +61,17 @@ filesList90 = [
     ["35_Lab_Val_100714", 42784]
 ]
 
-n_neighbors = [7, 12]
-alphas = [0.1, 0.5, 0.9]
-max_iters = [30, 80]
-tols = [0.001, 0.0001]
+n_neighbors = [12]
+alphas = [0.9]
+max_iters = [30]
+tols = [0.001]
 startIndex = 0
 
 
 n_inits = [10, 20]
+
+covar_types = ['spherical', 'diag', 'tied', 'full']
+
 folder = "./input"
 folder90 = "./input/split90"
 folder10 = "./input/split10"
@@ -200,6 +204,9 @@ def predict(clf, X, y, X_test, y_test, outname):
     results.append("   score done (%i secs): %f\n" % (time4 - time3, score))
 
     dictScores = []
+
+    accuracy = metrics.accuracy_score(y_test, y_pred, normalize=True, sample_weight=None)
+    results.append("   accuracy_score done: %s\n" % (str(accuracy)))
 
     f1_score = metrics.f1_score(y_test, y_pred, average=None)
     dictItem = convertToDictLabels(f1_score, classes)
@@ -388,12 +395,98 @@ def calculateGridSpotRandomForest(args, include10):
     stopAll = timeit.default_timer()
     print "Done predicting: %i secs" % (stopAll - startAll)
 
+
+def calculateGridSpotGaussian(index, args, covar_type):
+    # want to try it out with each file selected separately as the test data
+    # all the other files are combined to be the training data
+    startAll = timeit.default_timer()
+    print "\nGaussian(%i): %s" % (index, covar_type)
+
+    for fileInfo in filesList:
+        outLines = []
+        outname = "./output/PredictedGaussian/" # assigned later
+        inXtest = "%s/%s_selectedFeatures_%i.dat" % (folder, fileInfo[0], fileInfo[1])
+        inYtest = "%s/%s_labels_%i.dat" % (folder, fileInfo[0], fileInfo[1])
+# used for debugging
+#        inXtest = "%s/%s_selectedFeatures_test_%i.dat" % (folder, fileInfo[0], fileInfo[1])
+#        inYtest = "%s/%s_labels_test_%i.dat" % (folder, fileInfo[0], fileInfo[1])
+#        outname += "test_"
+
+        Xtest  = readFileMatrix(inXtest, fileInfo[1])
+        Ytest  = readFileMatrix(inYtest, fileInfo[1])
+
+        trainList = list(filesList)
+        trainList.remove(fileInfo)
+        [Xtrain, Ytrain] = createTrainingData(folder, trainList)
+
+#        print "X train shape %s" % str(Xtrain.shape)
+#        print "X test shape %s" % str(Xtest.shape)
+#        print "Y train shape %s" % str(Ytrain.shape)
+#        print "Y test shape %s" % str(Ytest.shape)
+
+        outLines.append("Test File:\n")
+        outLines.append("inXtest: %s\n" % inXtest)
+        outLines.append("inYtest: %s\n" % inYtest)
+
+        outLines.append("\nVariables:\n")
+        outLines.append("covar_type: %s\n" % covar_type)
+
+        outLines.append("\nRead in Files Done\n")
+        outLines.append("X train shape %s\n" % str(Xtrain.shape))
+        outLines.append("X test shape %s\n" % str(Xtest.shape))
+        outLines.append("Y train shape %s\n" % str(Ytrain.shape))
+        outLines.append("Y test shape %s\n" % str(Ytest.shape))
+        #outLines.append("total: %i\n" % (Xtrain.shape[0] + Xtest.shape[0]))
+        outLines.append("\n")
+
+
+
+        # CLASSIFY!
+        outname += "Gaussian"
+        clf = GMM(n_components=6, covariance_type=covar_type, init_params='wc', n_iter=20)
+
+        # Since we have class labels for the training data, we can
+        # initialize the GMM parameters in a supervised manner.
+        for i in xrange(1,7):
+            equals = Ytrain == i
+            m = np.zeros_like(Xtrain)
+            for col in range(m.shape[1]):
+                m[:, col] = equals
+            print m.shape
+            print m
+            print np.ma.masked_array(Xtrain, mask=equals)
+            print Xtrain.shape
+            separated.mean(axis=0)
+
+#        clf.means_ = np.array([Xtrain[].mean(axis=0)])
+        
+        print clf.means_.shape
+
+        start = timeit.default_timer()
+        results = predict(clf, Xtrain, np.ravel(Ytrain), Xtest, np.ravel(Ytest), "%s_%s_%i" % (outname, fileInfo[0], index))
+        stop = timeit.default_timer()
+        results.append("   total time: %i secs\n" % (stop - start))
+
+        outfile = file("%s_%s_%i_results.txt" % (outname, fileInfo[0], index), "w")
+
+        for i in range (len(outLines)):
+            outfile.write(outLines[i])
+
+        for i in range (len(results)):
+            outfile.write(results[i])
+
+        outfile.close();
+
+    stopAll = timeit.default_timer()
+    print "Done predicting: %i secs" % (stopAll - startAll)
+
 #---------------------MAIN FUNCTION------------------------------------------------------------------------
 
 # argument parsing.
 parser = argparse.ArgumentParser(description='Predict CyborgBugs.')
 parser.add_argument("-L", "--LabelSpreading", action="store_true", help="run LabelSpreading")
 parser.add_argument("-F", "--RandomForest", action="store_true", help="run Forest")
+parser.add_argument("-G", "--GaussianMixture", action="store_true", help="run Gaussian Mixature Model")
 
 random.seed(24)
 args = parser.parse_args()
@@ -412,6 +505,12 @@ if args.LabelSpreading:
 if args.RandomForest:
     calculateGridSpotRandomForest(args, False)
     calculateGridSpotRandomForest(args, True)
+
+
+if args.GaussianMixture:
+    for i in range(len(covar_types)):
+        calculateGridSpotGaussian(i, args, covar_types[i])
+
 
 
 print "------------------------ALL DONE!!!!---------------------------------"

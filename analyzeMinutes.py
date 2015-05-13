@@ -152,7 +152,10 @@ for fileInfo in filesList:
         printDict = []
         for i in range(len(minutes)):
             printDict.append({"Minute": minutes[i], "True Labels": trueLabelsMinArray[i], "Predicted Labels": predLabelsMinArray[i]})
-        writeFileArray(printDict, "%s/%s_minuteValues.csv" % (outFolder, fileInfo[0]))
+        if(doTransitions):
+            writeFileArray(printDict, "%s/%s_minuteValues_transitions.csv" % (outFolder, fileInfo[0]))
+        else:
+            writeFileArray(printDict, "%s/%s_minuteValues.csv" % (outFolder, fileInfo[0]))
 
 
         dictScores = []
@@ -178,13 +181,20 @@ for fileInfo in filesList:
         dictItem["Score Type"] = "recall_score"
         dictScores.append(dictItem)
 
-        writeFileArray(dictScores, "%s_scores.csv" % (outname))
+        if(doTransitions):
+            writeFileArray(dictScores, "%s_scores.csv" % (outname))
+        else:
+            writeFileArray(dictScores, "%s_scores_transitions.csv" % (outname))
         results.append("   recall_score done: %s\n" % (str(recall_score)))
 
         confusion_matrix = metrics.confusion_matrix(trueLabelsMinArray, predLabelsMinArray, labels=[1,2,3,4,5,6])
-        writeFileMatrixCSV(confusion_matrix, "%s_confusionMatrix.csv" % (outname))
+        if(doTransitions):
+            writeFileMatrixCSV(confusion_matrix, "%s_confusionMatrix_transitions.csv" % (outname))
+            outfile = file("%s_results_transitions.txt" % (outname), "w")
+        else:
+            writeFileMatrixCSV(confusion_matrix, "%s_confusionMatrix.csv" % (outname))
+            outfile = file("%s_results.txt" % (outname), "w")
 
-        outfile = file("%s_results.txt" % (outname), "w")
 
         for i in range (len(results)):
             outfile.write(results[i])

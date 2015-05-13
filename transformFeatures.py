@@ -13,6 +13,24 @@ from sklearn.cross_validation import train_test_split
 LabelOptions = ['np', 'c', 'e1', 'e2', 'd', 'g']
 LabelToIntConversion = {'np': 1, 'c': 2, 'e1': 3, 'e2': 4, 'd': 5, 'g': 6}
 
+filesList = [
+#    "04_Lab_FD_031114",
+#    "12_Lab_C_060514",
+#    "13_Lab_Cmac_031114",
+    "17_Lab_Cmac_031214"
+#    "21_Lab_Corrizo_051614",
+#    "29_Lab_Corrizo_051914",
+#    "31_Lab_Troyer_052114",
+#    "35_Lab_Val_100714"
+]
+
+outfolders = [
+    "./input/12ImportantFeatures",
+    "./input/12LargestMag",
+    "./input/12LargestFreq",
+    "./input/12LargestMagFreq"
+]
+
 #------------Variables that can easily be changed to affect output-------------------------
 lenOfFourier = 100
 numFeatures = 12
@@ -49,12 +67,14 @@ def writeFileArray(dictionary, fileName):
     outfile.close();
 
 
-def writeOutSamples(trainX, trainY, testX, testY, fileNames):
+def writeOutSamples(trainX, trainY, testX, testY, fileNames, outfolder):
     for i in range(len(fileNames)):
-        writeFileMatrix(trainX[i], "./output/%s_selectedFeatures_train_%i.dat" % (fileNames[i], trainX[i].shape[0]))
-        writeFileMatrix(trainY[i], "./output/%s_labels_train_%i.dat" % (fileNames[i], trainY[i].shape[0]))
-        writeFileMatrix(testX[i], "./output/%s_selectedFeatures_test_%i.dat" % (fileNames[i], testX[i].shape[0]))
-        writeFileMatrix(testY[i], "./output/%s_labels_test_%i.dat" % (fileNames[i], testY[i].shape[0]))
+        writeFileMatrix(trainX[i], "%s/split90/%s_selectedFeatures_90_%i.dat" % (outfolder, fileNames[i], trainX[i].shape[0]))
+        writeFileMatrix(trainY[i], "%s/split90/%s_labels_90_%i.dat" % (outfolder, fileNames[i], trainY[i].shape[0]))
+        writeFileMatrix(testX[i], "%s/split10/%s_selectedFeatures_10_%i.dat" % (outfolder, fileNames[i], testX[i].shape[0]))
+        writeFileMatrix(testY[i], "%s/split10/%s_labels_10_%i.dat" % (outfolder, fileNames[i], testY[i].shape[0]))
+        writeFileMatrix(testX[i], "%s/debug/%s_selectedFeatures_10_%i.dat" % (outfolder, fileNames[i], testX[i].shape[0]))
+        writeFileMatrix(testY[i], "%s/debug/%s_labels_10_%i.dat" % (outfolder, fileNames[i], testY[i].shape[0]))
 
 
 def writeOutCombinedSamples(trainX, trainY, testX, testY, fileName):
@@ -75,10 +95,10 @@ def writeOutCombinedSamples(trainX, trainY, testX, testY, fileName):
     writeFileMatrix(testXCombo, "%s_selectedFeatures_test_%i.dat" % (fileName, testXCombo.shape[0]))
     writeFileMatrix(testYCombo, "%s_labels_test_%i.dat" % (fileName, testYCombo.shape[0]))
 
-def writeOutSplitMatrix(featureMatrix, splits, fileNames):
+def writeOutSplitMatrix(featureMatrix, splits, fileNames, outfolder):
     separateMatrices = numpy.vsplit(featureMatrix, splits)
     for i in range(len(fileNames)):
-        writeFileMatrix(separateMatrices[i], "./output/%s_selectedFeatures_%i.dat" % (fileNames[i], separateMatrices[i].shape[0]))
+        writeFileMatrix(separateMatrices[i], "%s/%s_selectedFeatures_%i.dat" % (outfolder, fileNames[i], separateMatrices[i].shape[0]))
 
 
 #-------------Data functions----------------------------------------------------------
@@ -160,10 +180,42 @@ def featureSelection(matrixX, matrixY, seed, fileName):
         writeFileArray(dictionary, "%s_featureImportance_seed-%i.csv" % (fileName, seed))
         return [clf, featureMatrix]
 
-def featureSelectionTrimed(matrixX, matrixY, fileName):
+def featureSelectionImportanceTrimed(matrixX, matrixY, fileName):
     [clf, featureMatrix] = featureSelection(matrixX, matrixY, finalSeed, fileName)
     return numpy.hsplit(featureMatrix, [numFeatures])[0]
 
+def featureSelectionLargestMag(matrixX, matrixY, fileName):
+    [rows, cols] = matrixX.shape
+    sortedMatrix = numpy.zeros(shape=(rows,numFeatures), dtype=numpy.float64)
+    for i in range(rows):
+        row = matrixX[i]
+        sortedRowIndex = numpy.argsort(abs(row))[::-1]
+        for j in range(numFeatures):
+            sortedMatrix[i][j] = row[sortedRowIndex[j]]
+    return sortedMatrix
+
+
+def featureSelectionLargestFreq(matrixX, matrixY, fileName):
+    [rows, cols] = matrixX.shape
+    sortedMatrix = numpy.zeros(shape=(rows,numFeatures), dtype=numpy.float64)
+    for i in range(rows):
+        row = matrixX[i]
+        sortedRowIndex = numpy.argsort(abs(row))[::-1]
+        for j in range(numFeatures):
+            sortedMatrix[i][j] = sortedRowIndex[j]
+    return sortedMatrix
+
+
+def featureSelectionLargestMagFreq(matrixX, matrixY, fileName):
+    [rows, cols] = matrixX.shape
+    sortedMatrix = numpy.zeros(shape=(rows,numFeatures*2), dtype=numpy.float64)
+    for i in range(rows):
+        row = matrixX[i]
+        sortedRowIndex = numpy.argsort(abs(row))[::-1]
+        for j in range(numFeatures):
+            sortedMatrix[i][j] = row[sortedRowIndex[j]]
+            sortedMatrix[i][j+numFeatures] = sortedRowIndex[j]
+    return sortedMatrix
 
 def featureSelectionTestOptions(matrixX, matrixY, fileName):
     seeds = [24]#[0, 7, 16, 1, 24, 72]#, 48, 96, 28, 56, 112]
@@ -241,19 +293,15 @@ def processFile(inFileName, outFileName):
 
 
 
-
-# iterates over list and processes files
-# performs feature selection after combining all the data in all the files
-def mainAll(filesList):
-    start = timeit.default_timer()
+def readInFilesCombined(filesList):
     featuresFinal = None
     labelsFinal = None
     splits = []
     total = 0
-    outCombinedFile = "./output/"
+    outCombinedFile = ""
     for fileRow in filesList:
         inFile = "./LabeledData/%s.csv" % fileRow
-        outFile = "./output/%s" % fileRow
+        outFile = "./input/%s" % (fileRow)
         outCombinedFile += "%s--" % fileRow
         if(featuresFinal == None):
             [featuresFinal, labelsFinal] = processFile(inFile, outFile)
@@ -269,49 +317,57 @@ def mainAll(filesList):
     print "Size of Combined Feature Matrix: (%i, %i)" % (featuresFinal.shape[0], featuresFinal.shape[1])
     print "Size of Combined Labels Matrix: (%i, %i)" % (labelsFinal.shape[0], labelsFinal.shape[1])
 
-    # preform feature selection
-    print "Performing Feature Selection..."
-    # used to create different results for seeds and number of features
-#    featureMatrix = featureSelectionTestOptions(featuresFinal, labelsFinal, outCombinedFile)
-    featureMatrix = featureSelectionTrimed(featuresFinal, labelsFinal, outCombinedFile)
-    print "Size of Selected Feature Matrix: (%i, %i)" % (featureMatrix.shape[0], featureMatrix.shape[1])
-    writeFileMatrix(featureMatrix, "%s_selectedFeatures_%s.dat" % (outCombinedFile, featureMatrix.shape[0]))
+    return [featuresFinal, labelsFinal, splits, outCombinedFile]
 
-    # split into individual files
-    print "Write out separate selected"
-    writeOutSplitMatrix(featureMatrix, splits, filesList)
+# iterates over list and processes files
+# performs feature selection after combining all the data in all the files
+def mainAll():
+    [featuresFinal, labelsFinal, splits, outCombinedFile] = readInFilesCombined(filesList)
 
-    # split into training and test data
-    print "select subsamples"
-    [trainXList, trainYList, testXList, testYList] = selectSubsample(featureMatrix, labelsFinal, splits)
-    print "write out separate samples"
-    writeOutSamples(trainXList, trainYList, testXList, testYList, filesList)
-    print "write out combined samples"
-    writeOutCombinedSamples(trainXList, trainYList, testXList, testYList, outCombinedFile)
+    for i in range(len(outfolders)):
+        start = timeit.default_timer()
+        outfolder = outfolders[i]
+
+        # preform feature selection
+        print "Performing Feature Selection...  %s" % outfolder
+        # used to create different results for seeds and number of features
+    #    featureMatrix = featureSelectionTestOptions(featuresFinal, labelsFinal, outCombinedFile)
+        if(i == 0):
+            featureMatrix = featureSelectionImportanceTrimed(featuresFinal, labelsFinal, "%s/%s" % (outfolder, outCombinedFile))
+        elif(i == 1):
+            featureMatrix = featureSelectionLargestMag(featuresFinal, labelsFinal, "%s/%s" % (outfolder, outCombinedFile))
+        elif(i == 2):
+            featureMatrix = featureSelectionLargestFreq(featuresFinal, labelsFinal, "%s/%s" % (outfolder, outCombinedFile))
+        elif(i == 3):
+            featureMatrix = featureSelectionLargestMagFreq(featuresFinal, labelsFinal, "%s/%s" % (outfolder, outCombinedFile))
+
+        print "Size of Selected Feature Matrix: (%i, %i)" % (featureMatrix.shape[0], featureMatrix.shape[1])
+        writeFileMatrix(featureMatrix, "%s/%s_selectedFeatures_%s.dat" % (outfolder, outCombinedFile, featureMatrix.shape[0]))
+
+        # split into individual files
+        print "Write out separate selected"
+        writeOutSplitMatrix(featureMatrix, splits, filesList, outfolder)
+
+        # split into training and test data
+        print "select subsamples"
+        [trainXList, trainYList, testXList, testYList] = selectSubsample(featureMatrix, labelsFinal, splits)
+        print "write out separate samples"
+        writeOutSamples(trainXList, trainYList, testXList, testYList, filesList, outfolder)
+        print "write out combined samples"
+        writeOutCombinedSamples(trainXList, trainYList, testXList, testYList, "%s/%s" % (outfolder, outCombinedFile))
 
 
-
-
-    stop = timeit.default_timer()
-    print "\nRuntime: " + str(stop - start)
+        stop = timeit.default_timer()
+        print "\nRuntime: " + str(stop - start)
 
 
 # ----------------MAIN CALLS ---------------------------------
 
-filesList = [
-    "04_Lab_FD_031114",
-    "12_Lab_C_060514",
-    "13_Lab_Cmac_031114",
-    "17_Lab_Cmac_031214",
-    "21_Lab_Corrizo_051614",
-    "29_Lab_Corrizo_051914",
-    "31_Lab_Troyer_052114",
-    "35_Lab_Val_100714"
-]
 
 #processFile("./LabeledData/%s.csv" % filesList[0], "./output/%s" % filesList[0])
 
-mainAll(filesList)
+
+mainAll()
 
 
 
