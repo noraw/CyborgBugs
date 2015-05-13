@@ -14,14 +14,14 @@ LabelOptions = ['np', 'c', 'e1', 'e2', 'd', 'g']
 LabelToIntConversion = {'np': 1, 'c': 2, 'e1': 3, 'e2': 4, 'd': 5, 'g': 6}
 
 filesList = [
-#    "04_Lab_FD_031114",
-#    "12_Lab_C_060514",
-#    "13_Lab_Cmac_031114",
-    "17_Lab_Cmac_031214"
-#    "21_Lab_Corrizo_051614",
-#    "29_Lab_Corrizo_051914",
-#    "31_Lab_Troyer_052114",
-#    "35_Lab_Val_100714"
+    "04_Lab_FD_031114",
+    "12_Lab_C_060514",
+    "13_Lab_Cmac_031114",
+    "17_Lab_Cmac_031214",
+    "21_Lab_Corrizo_051614",
+    "29_Lab_Corrizo_051914",
+    "31_Lab_Troyer_052114",
+    "35_Lab_Val_100714"
 ]
 
 outfolders = [
@@ -322,6 +322,7 @@ def readInFilesCombined(filesList):
 # iterates over list and processes files
 # performs feature selection after combining all the data in all the files
 def mainAll():
+    print "\nReading in the files..."
     [featuresFinal, labelsFinal, splits, outCombinedFile] = readInFilesCombined(filesList)
 
     for i in range(len(outfolders)):

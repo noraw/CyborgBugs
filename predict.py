@@ -447,20 +447,17 @@ def calculateGridSpotGaussian(index, args, covar_type):
 
         # Since we have class labels for the training data, we can
         # initialize the GMM parameters in a supervised manner.
+        meanMatrix = np.zeros(shape=(6,Xtrain.shape[1]), dtype=np.float64)
         for i in xrange(1,7):
-            equals = Ytrain == i
+            equals = np.ravel(Ytrain != i)
             m = np.zeros_like(Xtrain)
             for col in range(m.shape[1]):
                 m[:, col] = equals
-            print m.shape
-            print m
-            print np.ma.masked_array(Xtrain, mask=equals)
-            print Xtrain.shape
-            separated.mean(axis=0)
+            separated = np.ma.masked_array(Xtrain, mask=m)
+            mean = separated.mean(axis=0)
+            meanMatrix[i-1] = mean
 
-#        clf.means_ = np.array([Xtrain[].mean(axis=0)])
-        
-        print clf.means_.shape
+        clf.means_ = meanMatrix
 
         start = timeit.default_timer()
         results = predict(clf, Xtrain, np.ravel(Ytrain), Xtest, np.ravel(Ytest), "%s_%s_%i" % (outname, fileInfo[0], index))
