@@ -13,17 +13,19 @@ LabelToIntConversion = {'np': 1, 'c': 2, 'e1': 3, 'e2': 4, 'd': 5, 'g': 6}
 
 #------------Variables that can easily be changed to affect output-------------------------
 typeList = [["LabelSpreading", 21]]
+            
+#typeList = [["RandomForest"]]
 
 
 filesList = [
-    ["04_Lab_FD_031114", 13571],
-    ["12_Lab_C_060514", 40504],
-    ["13_Lab_Cmac_031114", 6032],
-    ["17_Lab_Cmac_031214", 4988],
-    ["21_Lab_Corrizo_051614", 86619],
-    ["29_Lab_Corrizo_051914", 73811],
-    ["31_Lab_Troyer_052114", 14482],
-    ["35_Lab_Val_100714", 47538]
+#    ["04_Lab_FD_031114", 13571],
+#    ["12_Lab_C_060514", 40504],
+#    ["13_Lab_Cmac_031114", 6032],
+#    ["17_Lab_Cmac_031214", 4988],
+#    ["21_Lab_Corrizo_051614", 86619],
+    ["29_Lab_Corrizo_051914", 73811]
+#    ["31_Lab_Troyer_052114", 14482],
+#    ["35_Lab_Val_100714", 47538]
 ]
 
 predictedFolder = "./analyzeMinutes/input"
@@ -133,12 +135,18 @@ for fileInfo in filesList:
     for typeInfo in typeList:
         inTrueLabelsName = "%s/%s_labels_%i.dat" % (trueFolder, fileInfo[0], fileInfo[1])
         inPredLabelsName = "%s/%s_%s_%i_predictedValues.csv" % (predictedFolder, typeInfo[0], fileInfo[0], typeInfo[1])
+#        inPredLabelsName = "%s/%s_%s_predictedValues.csv" % (predictedFolder, typeInfo[0], fileInfo[0])
         inSecondsName = "%s/%s_seconds_%i.dat" % (secondsFolder, fileInfo[0], fileInfo[1])
         outname = "%s/%s_%s_%i" % (outFolder, typeInfo[0], fileInfo[0], typeInfo[1])
+#        outname = "%s/%s_%s" % (outFolder, typeInfo[0], fileInfo[0])
 
         trueLabelsArray = numpy.ravel(readFileMatrix(inTrueLabelsName, fileInfo[1]))
         predLabelsArray = readFile(inPredLabelsName)
         secondsArray = numpy.ravel(readFileMatrix(inSecondsName, fileInfo[1]))
+
+        print len(trueLabelsArray)
+        print len(predLabelsArray)
+        print len(secondsArray)
 
         [minutesDict, minutes] = groupIntoMinutes(secondsArray)
         trueLabelsMinArray = groupValues(trueLabelsArray, minutesDict)
@@ -147,7 +155,7 @@ for fileInfo in filesList:
         printDict = []
         for i in range(len(minutes)):
             printDict.append({"Minute": minutes[i], "True Labels": trueLabelsMinArray[i], "Predicted Labels": predLabelsMinArray[i]})
-        writeFileArray(printDict, "%s/%s_minuteValues.csv" % (outFolder, fileInfo[0]))
+        writeFileArray(printDict, "%s/%s_%s_minuteValues.csv" % (outFolder, typeInfo[0], fileInfo[0]))
 
 
         dictScores = []
