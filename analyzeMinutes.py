@@ -1,90 +1,49 @@
 #!/usr/bin/python
 import os
-import csv
 import random
 import timeit
 import numpy
 from sets import Set
 from sklearn import metrics
+from readWrite import *
 
 #-------------Global Config variables-----------------------
 LabelOptions = ['np', 'c', 'e1', 'e2', 'd', 'g']
 LabelToIntConversion = {'np': 1, 'c': 2, 'e1': 3, 'e2': 4, 'd': 5, 'g': 6}
 
 #------------Variables that can easily be changed to affect output-------------------------
-typeList = [["LabelSpreading", 21]]
-            
-#typeList = [["RandomForest"]]
-
-
 filesList = [
-#    ["04_Lab_FD_031114", 13571],
-#    ["12_Lab_C_060514", 40504],
-#    ["13_Lab_Cmac_031114", 6032],
-#    ["17_Lab_Cmac_031214", 4988],
-#    ["21_Lab_Corrizo_051614", 86619],
-    ["29_Lab_Corrizo_051914", 73811]
-#    ["31_Lab_Troyer_052114", 14482],
-#    ["35_Lab_Val_100714", 47538]
+    ["04_Lab_FD_031114", 13571],
+    ["12_Lab_C_060514", 40504],
+    ["13_Lab_Cmac_031114", 6032],
+    ["17_Lab_Cmac_031214", 4988],
+    ["21_Lab_Corrizo_051614", 86619],
+    ["29_Lab_Corrizo_051914", 73811],
+    ["31_Lab_Troyer_052114", 14482],
+    ["35_Lab_Val_100714", 47538]
 ]
 
-predictedFolder = "./analyzeMinutes/input"
+featureFolders = [
+    "12ImportantFeatures",
+    "12LargestMag",
+    "12LargestFreq",
+    "12LargestMagFreq"
+]
+
+typeFolders = [
+    ["Gaussian", [0,1,2,3]],
+    ["LabelSpreading", [1]],
+    ["RandomForest", [-1]]
+]
+
+folder = "./output"
+
 trueFolder = "./input"
-secondsFolder = "./analyzeMinutes/inputSeconds"
 
-outFolder = "./analyzeMinutes/output"
-
-#-------------Input/Output functions----------------------------------------
-def readFile(fileName):
-    csvfile = open(fileName)
-    fileDict = csv.DictReader(csvfile)
-    array = []
-    for row in fileDict:
-        array.append(float(row['Value']))
-    return array
-
-
-def readFileMatrix(myfile, size):
-    array = numpy.fromfile(myfile, dtype=numpy.float64, count=-1, sep="")
-    array = numpy.reshape(array,(size,-1))
-    return array
-
-
-def writeFileArray(dictionary, fileName):
-    # output feature importance for graphs
-    outfile = file(fileName, "w")
-    keys = []
-    header = ""
-    for key in dictionary[0].keys():
-        keys.append(key)
-        header += '"'+str(key) + '",'
-    outfile.write(header + '\n');
-
-    for i in range(len(dictionary)):
-        outLine = ""
-        for key in keys:
-            outLine += str(dictionary[i][key]) + ","
-        outLine += "\n"
-        outfile.write(outLine)
-
-    outfile.close();
-
-
-def writeFileMatrixCSV(matrix, fileName):
-    outfile = file(fileName, "w")
-    outfile.write('"Confusion Matrix","1","2","3","4","5","6"\n');
-    rows = matrix.shape[0]
-    cols = matrix.shape[1]
-
-    for row in range(rows):
-        outline = "%i," % (row+1)
-        for col in range(cols):
-            outline += "%i," % matrix[row][col]
-        outline += "\n"
-        outfile.write(outline)
-
-    outfile.close()
-
+outFolders = [
+    ["./output/minutes", False],
+    ["./output/minutesTransitions", True]
+]
 
 
 #-------------Data functions----------------------------------------------------------
@@ -117,7 +76,7 @@ def groupValues(labels, minutesDict, doTransitions):
             currentCount = labelCount[labelIndex]
             labelCount[labelIndex] = currentCount + 1
         maxCount = max(labelCount)
-        if(doTransitions && maxCount < 50):
+        if(doTransitions and maxCount < 50):
             newLabels.append(7)
         else:
             newLabels.append(labelCount.index(maxCount) + 1)
@@ -134,81 +93,111 @@ def convertToDictLabels(values, classes):
 
 
 #------------------------MAIN--------------------------
-doTransitions = True
+def processFile(outFolderItem, typeFolderItem, featureFolder, index, fileInfo):
+    start = timeit.default_timer()
+    doTransitions = outFolderItem[1]
+    typeFolder = typeFolderItem[0]
+    insectFile = fileInfo[0]
 
-for fileInfo in filesList:
-    for typeInfo in typeList:
-        inTrueLabelsName = "%s/%s_labels_%i.dat" % (trueFolder, fileInfo[0], fileInfo[1])
-        inPredLabelsName = "%s/%s_%s_%i_predictedValues.csv" % (predictedFolder, typeInfo[0], fileInfo[0], typeInfo[1])
-#        inPredLabelsName = "%s/%s_%s_predictedValues.csv" % (predictedFolder, typeInfo[0], fileInfo[0])
-        inSecondsName = "%s/%s_seconds_%i.dat" % (secondsFolder, fileInfo[0], fileInfo[1])
-        outname = "%s/%s_%s_%i" % (outFolder, typeInfo[0], fileInfo[0], typeInfo[1])
-#        outname = "%s/%s_%s" % (outFolder, typeInfo[0], fileInfo[0])
+    if(index != -1):
+        insectFile += "_%i" % index
+    inPredLabelsName = "%s/Predicted%s/%s/%s_%s_predictedValues.csv" % \
+        (folder, typeFolder, featureFolder, typeFolder, insectFile)
+    inTrueLabelsName = "%s/%s_labels_%i.dat" % (trueFolder, fileInfo[0], fileInfo[1])
+    inSecondsName = "%s/%s_seconds_%i.dat" % (trueFolder, fileInfo[0], fileInfo[1])
+    outname = "%s/Predicted%s/%s/%s_%s" % \
+        (outFolderItem[0], typeFolder, featureFolder, typeFolder, insectFile)
 
-        trueLabelsArray = numpy.ravel(readFileMatrix(inTrueLabelsName, fileInfo[1]))
-        predLabelsArray = readFile(inPredLabelsName)
-        secondsArray = numpy.ravel(readFileMatrix(inSecondsName, fileInfo[1]))
+#    print inPredLabelsName
+#    print inTrueLabelsName
+#    print inSecondsName
+#    print outname
+#    print "\n"
+    trueLabelsArray = numpy.ravel(readFileMatrix(inTrueLabelsName, fileInfo[1]))
+    predLabelsArray = readCSVFileToValueArray(inPredLabelsName)
+    secondsArray = numpy.ravel(readFileMatrix(inSecondsName, fileInfo[1]))
 
-        print len(trueLabelsArray)
-        print len(predLabelsArray)
-        print len(secondsArray)
+    [minutesDict, minutes] = groupIntoMinutes(secondsArray)
+    trueLabelsMinArray = groupValues(trueLabelsArray, minutesDict, doTransitions)
+    predLabelsMinArray = groupValues(predLabelsArray, minutesDict, doTransitions)
 
-        [minutesDict, minutes] = groupIntoMinutes(secondsArray)
-        trueLabelsMinArray = groupValues(trueLabelsArray, minutesDict, doTransitions)
-        predLabelsMinArray = groupValues(predLabelsArray, minutesDict, doTransitions)
+    writeFileList(predLabelsMinArray, "%s_predictedValues.csv" % (outname))
+    printDict = []
+    for i in range(len(minutes)):
+        printDict.append({"Minute": minutes[i], "True Labels": trueLabelsMinArray[i], "Predicted Labels": predLabelsMinArray[i]})
 
-        printDict = []
-        for i in range(len(minutes)):
-            printDict.append({"Minute": minutes[i], "True Labels": trueLabelsMinArray[i], "Predicted Labels": predLabelsMinArray[i]})
+    writeFileArray(printDict, "%s_trueAndPredictedValues.csv" % (outname))
 
-        if(doTransitions):
-            writeFileArray(printDict, "%s/%s_minuteValues_transitions.csv" % (outFolder, fileInfo[0]))
+
+    dictScores = []
+    results = []
+    classes = [1,2,3,4,5,6, 7]
+
+    results.append("inPredLabelsName: %s\n" % inPredLabelsName)
+    results.append("inTrueLabelsName: %s\n" % inTrueLabelsName)
+    results.append("inSecondsName: %s\n" % inSecondsName)
+    results.append("\n")
+
+
+    accuracy = metrics.accuracy_score(trueLabelsMinArray, predLabelsMinArray, normalize=True, sample_weight=None)
+    results.append("   accuracy_score done: %s\n" % (str(accuracy)))
+
+    f1_score = metrics.f1_score(trueLabelsMinArray, predLabelsMinArray, average=None, labels=classes)
+    dictItem = convertToDictLabels(f1_score, classes)
+    dictItem["Score Type"] = "f1_score"
+    dictScores.append(dictItem)
+    results.append("   f1_score done: %s\n" % (str(f1_score)))
+
+    precision_score = metrics.precision_score(trueLabelsMinArray, predLabelsMinArray, average=None, labels=classes)
+    dictItem = convertToDictLabels(precision_score, classes)
+    dictItem["Score Type"] = "precision_score"
+    dictScores.append(dictItem)
+    results.append("   precision_score done: %s\n" % (str(precision_score)))
+
+    recall_score = metrics.recall_score(trueLabelsMinArray, predLabelsMinArray, average=None, labels=classes)
+    dictItem = convertToDictLabels(recall_score, classes)
+    dictItem["Score Type"] = "recall_score"
+    dictScores.append(dictItem)
+
+    writeFileArray(dictScores, "%s_scores.csv" % (outname))
+    results.append("   recall_score done: %s\n" % (str(recall_score)))
+    stop = timeit.default_timer()
+    results.append("   total time: %f secs\n" % (stop - start))
+
+    confusion_matrix = metrics.confusion_matrix(trueLabelsMinArray, predLabelsMinArray, labels=classes)
+    writeFileMatrixCSV(confusion_matrix, "%s_confusionMatrix.csv" % (outname))
+
+    outfile = file("%s_results.txt" % (outname), "w")
+    for i in range (len(results)):
+        outfile.write(results[i])
+    outfile.close();
+
+
+
+
+
+def main():
+    for outFolderItem in outFolders:
+        if(outFolderItem[1]):
+            print "\nGrouping Minutes with Transitions..."
         else:
-            writeFileArray(printDict, "%s/%s_minuteValues.csv" % (outFolder, fileInfo[0]))
+            print "\nGrouping Minutes..."
+        for typeFolderItem in typeFolders:
+            print "   %s" % typeFolderItem[0]
+            for featureFolder in featureFolders:
+                print "      %s" % featureFolder
+                indices = typeFolderItem[1]
+                for index in indices:
+                    for fileInfo in filesList:
+                        processFile(outFolderItem, typeFolderItem, featureFolder, index, fileInfo)
 
 
-        dictScores = []
-        results = []
-        classes = [1,2,3,4,5,6]
-        accuracy = metrics.accuracy_score(trueLabelsMinArray, predLabelsMinArray, normalize=True, sample_weight=None)
-        results.append("   accuracy_score done: %s\n" % (str(accuracy)))
-
-        f1_score = metrics.f1_score(trueLabelsMinArray, predLabelsMinArray, average=None)
-        dictItem = convertToDictLabels(f1_score, classes)
-        dictItem["Score Type"] = "f1_score"
-        dictScores.append(dictItem)
-        results.append("   f1_score done: %s\n" % (str(f1_score)))
-
-        precision_score = metrics.precision_score(trueLabelsMinArray, predLabelsMinArray, average=None)
-        dictItem = convertToDictLabels(precision_score, classes)
-        dictItem["Score Type"] = "precision_score"
-        dictScores.append(dictItem)
-        results.append("   precision_score done: %s\n" % (str(precision_score)))
-
-        recall_score = metrics.recall_score(trueLabelsMinArray, predLabelsMinArray, average=None)
-        dictItem = convertToDictLabels(recall_score, classes)
-        dictItem["Score Type"] = "recall_score"
-        dictScores.append(dictItem)
-
-        if(doTransitions):
-            writeFileArray(dictScores, "%s_scores.csv" % (outname))
-        else:
-            writeFileArray(dictScores, "%s_scores_transitions.csv" % (outname))
-        results.append("   recall_score done: %s\n" % (str(recall_score)))
-
-        confusion_matrix = metrics.confusion_matrix(trueLabelsMinArray, predLabelsMinArray, labels=[1,2,3,4,5,6])
-        if(doTransitions):
-            writeFileMatrixCSV(confusion_matrix, "%s_confusionMatrix_transitions.csv" % (outname))
-            outfile = file("%s_results_transitions.txt" % (outname), "w")
-        else:
-            writeFileMatrixCSV(confusion_matrix, "%s_confusionMatrix.csv" % (outname))
-            outfile = file("%s_results.txt" % (outname), "w")
 
 
-        for i in range (len(results)):
-            outfile.write(results[i])
 
-        outfile.close();
+# -------------------END--------------
+main()
+
 
 
 

@@ -15,6 +15,7 @@ from sklearn.mixture import GMM
 from scipy import sparse
 import timeit
 from math import sqrt
+from readWrite import *
 
 # ------------- INPUT VARIABLES-------------------------------------
 filesList = [
@@ -87,79 +88,7 @@ debug = "debug"
 # used for debugging
 #filesList = filesListDebug
 
-
-#---------------------READ/WRITE FUNCTIONS----------------------------------------
-def ensure_dir(f):
-    d = os.path.dirname(f)
-    if not os.path.exists(d):
-        os.makedirs(d)
-
-# read a dat file back into python. 
-def readFileMatrix(myfile, size):
-    array = np.fromfile(myfile, dtype=np.float64, count=-1, sep="")
-    array = np.reshape(array,(size,-1))
-    return array
-
-def writeFileMatrix(matrix, fileName):
-    ensure_dir(fileName)
-    matrix.tofile(fileName)
-
-def writeFileArray(dictionary, fileName):
-    # output feature importance for graphs
-    ensure_dir(fileName)
-    outfile = file(fileName, "w")
-    keys = []
-    header = ""
-    for key in dictionary[0].keys():
-        keys.append(key)
-        header += '"'+str(key) + '",'
-    outfile.write(header + '\n');
-
-    for i in range(len(dictionary)):
-        outLine = ""
-        for key in keys:
-            outLine += str(dictionary[i][key]) + ","
-        outLine += "\n"
-        outfile.write(outLine)
-
-    outfile.close();
-
-def writeFileList(array, fileName):
-    ensure_dir(fileName)
-    # output feature importance for graphs
-    outfile = file(fileName, "w")
-    outfile.write('"ID","Value"\n');
-
-    for i in range(len(array)):
-        outLine = '"%i","%s"\n' % (i, str(array[i]))
-        outfile.write(outLine)
-
-    outfile.close();
-
-def writeFileMatrixCSV(matrix, fileName):
-    ensure_dir(fileName)
-    outfile = file(fileName, "w")
-    outfile.write('"Confusion Matrix","1","2","3","4","5","6"\n');
-    rows = matrix.shape[0]
-    cols = matrix.shape[1]
-
-    for row in range(rows):
-        outline = "%i," % (row+1)
-        for col in range(cols):
-            outline += "%i," % matrix[row][col]
-        outline += "\n"
-        outfile.write(outline)
-
-    outfile.close()
-
-
 # -------------------------------HELPER FUNCTIONS ------------------------------
-def getSizeFromFileName(myfile):
-    parts = myfile.split("_")
-    parts2 = parts[-1].split(".")
-    return parts2[0]
-
-
 def createTrainingData(folderIn, fileList, infolder):
     for i in range(len(fileList)):
         fileInfo = fileList[i]
