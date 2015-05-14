@@ -505,9 +505,9 @@ random.seed(24)
 args = parser.parse_args()
 print args;
 
-index = 1
 if args.LabelSpreading:
     for infolder in infolders:
+        index = 1
         for neighbor in n_neighbors:
             for alpha in alphas:
                 for max_iter in max_iters:

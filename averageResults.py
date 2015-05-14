@@ -4,15 +4,10 @@
 #
 #
 # ********************************************
-import numpy as np
+import numpy
 import argparse
 import os
 import random
-from sklearn import metrics
-from sklearn.semi_supervised import LabelSpreading
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.mixture import GMM
-from scipy import sparse
 import timeit
 from math import sqrt
 
@@ -36,9 +31,9 @@ featureFolders = [
 ]
 
 typeFolders = [
-    "LabelSpreading",
-    "Gaussian",
-    "RandomForest"
+    ["Gaussian", [0,1,2,3]],
+    ["LabelSpreading", [1]],
+    ["RandomForest", [-1]]
 ]
 
 folder = "./output"
@@ -47,7 +42,7 @@ folder = "./output"
 
 def readFile(fileName):
     f = open(fileName) 
-    lines = f.readlines()
+    lines = f.read().splitlines()
     return lines
 
 
@@ -76,7 +71,6 @@ def findTotalSeconds(lines):
     for line in lines:
         if(line.find("total time") != -1):
             parts = line.split(" ")
-            print parts
             return int(parts[-2])
 
 
@@ -84,37 +78,40 @@ def findAccuracy(lines):
     for line in lines:
         if(line.find("accuracy_score") != -1):
             parts = line.split(" ")
-            print parts
-            return float(parts[-1] * 100)
+            return float(parts[-1]) * 100
     
 #------------------------MAIN-------------------------------------
 def main():
     resultsDict = []
     outfile = "%s/Average_results.txt" % (folder)
-    for typeFolder in typeFolders:
+    for typeFolderItem in typeFolders:
+        typeFolder = typeFolderItem[0]
+        indices = typeFolderItem[1]
         for featureFolder in featureFolders:
-            print outfile
-            secondsList = []
-            accuracyList = []
-            for insectPair in filesList:
-                if(typeFolder == "LabelSpreading"):
-                    insectPair += "_1"
-                infile = "%s/Predicted%s/%s/%s_%s_results.txt" % (folder, typeFolder, featureFolder, typeFolder, insectPair)
-                lines = readFile(infile)
-                secondsList.append(findTotalSeconds(lines))
-                accuracyList.append(findAccuracy(lines))
+            for index in indices:
+                secondsList = []
+                accuracyList = []
+                for insectPair in filesList:
+                    insectFile = insectPair[0]
+                    if(index != "-1"):
+                        insectFile += "_%i" % index
+                    infile = "%s/Predicted%s/%s/%s_%s_results.txt" % (folder, typeFolder, featureFolder, typeFolder, insectFile)
+                    lines = readFile(infile)
+                    secondsList.append(findTotalSeconds(lines))
+                    accuracyList.append(findAccuracy(lines))
+                    
                 
-            
-            resultsDict.append({
-                "Classifier":typeFolder, 
-                "Feature Set": featureFolder, 
-                "Average Accuracy": numpy.average(accuracyList),
-                "Average Time (sec)": numpy.average(secondsList),
-                "Max Accuracy": max(accuracyList),
-                "Max Accuracy Pair": filesList[accuracyList.index(max(accuracyList))],
-                "Min Accuracy": min(accuracyList),
-                "Min Accuracy Pair": filesList[accuracyList.index(min(accuracyList))]
-            })
+                resultsDict.append({
+                    "Classifier":typeFolder, 
+                    "Feature Set": featureFolder, 
+                    "Index": index, 
+                    "Average Accuracy": "%.2f" % numpy.average(accuracyList),
+                    "Average Time (sec)": "%.2f" % numpy.average(secondsList),
+                    "Max Accuracy": "%.2f" % max(accuracyList),
+                    "Max Accuracy Pair": filesList[accuracyList.index(max(accuracyList))][0],
+                    "Min Accuracy": "%.2f" % min(accuracyList),
+                    "Min Accuracy Pair": filesList[accuracyList.index(min(accuracyList))][0]
+                })
 
     writeFileArray(resultsDict, outfile)
 
