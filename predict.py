@@ -64,7 +64,7 @@ filesList90 = [
 
 n_neighbors = [12]
 alphas = [0.9]
-max_iters = [30]
+max_iters = [80]
 tols = [0.001]
 startIndex = 0
 

@@ -32,7 +32,7 @@ featureFolders = [
 ]
 
 typeFolders = [
-    ["Gaussian", [0,1,2,3]],
+    ["Gaussian", [3]],
     ["LabelSpreading", [1]],
     ["RandomForest", [-1]]
 ]
